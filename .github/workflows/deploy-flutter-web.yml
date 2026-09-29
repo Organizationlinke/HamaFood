@@ -1,3 +1,50 @@
+# # name: Deploy Hama Work Flutter Web
+
+# # on:
+# #   push:
+# #     branches:
+# #       - main
+# #   workflow_dispatch:
+
+# # permissions:
+# #   contents: write
+# #   pages: write
+# #   id-token: write
+
+# # jobs:
+# #   build-and-deploy:
+# #     runs-on: ubuntu-latest
+
+# #     steps:
+# #       - name: Checkout
+# #         uses: actions/checkout@v4
+
+# #       - name: Setup Flutter
+# #         uses: subosito/flutter-action@v2
+# #         with:
+# #           channel: stable
+# #           cache: true
+
+# #       - name: Flutter version
+# #         run: flutter --version
+
+# #       - name: Install dependencies
+# #         run: flutter pub get
+
+# #       - name: Build Flutter Web
+# #         run: |
+# #           flutter build web \
+# #             --release \
+# #             --base-href="/${{ github.event.repository.name }}/" \
+# #             --dart-define="SUPABASE_URL=${{ secrets.SUPABASE_URL }}" \
+# #             --dart-define="SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}" \
+# #             --dart-define="HAMA_AUTH_DOMAIN=${{ secrets.HAMA_AUTH_DOMAIN }}"
+
+# #       - name: Deploy to GitHub Pages
+# #         uses: peaceiris/actions-gh-pages@v4
+# #         with:
+# #           github_token: ${{ secrets.GITHUB_TOKEN }}
+# #           publish_dir: build/web
 # name: Deploy Hama Work Flutter Web
 
 # on:
@@ -8,8 +55,6 @@
 
 # permissions:
 #   contents: write
-#   pages: write
-#   id-token: write
 
 # jobs:
 #   build-and-deploy:
@@ -31,14 +76,35 @@
 #       - name: Install dependencies
 #         run: flutter pub get
 
+#       - name: Check Supabase configuration
+#         env:
+#           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+#           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+#         run: |
+#           if [ -z "$SUPABASE_URL" ]; then
+#             echo "ERROR: SUPABASE_URL secret is empty"
+#             exit 1
+#           fi
+
+#           if [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+#             echo "ERROR: SUPABASE_PUBLISHABLE_KEY secret is empty"
+#             exit 1
+#           fi
+
+#           echo "Supabase configuration is available."
+
 #       - name: Build Flutter Web
+#         env:
+#           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+#           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+#           HAMA_AUTH_DOMAIN: ${{ secrets.HAMA_AUTH_DOMAIN }}
 #         run: |
 #           flutter build web \
 #             --release \
 #             --base-href="/${{ github.event.repository.name }}/" \
-#             --dart-define="SUPABASE_URL=${{ secrets.SUPABASE_URL }}" \
-#             --dart-define="SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}" \
-#             --dart-define="HAMA_AUTH_DOMAIN=${{ secrets.HAMA_AUTH_DOMAIN }}"
+#             --dart-define="SUPABASE_URL=$SUPABASE_URL" \
+#             --dart-define="SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY" \
+#             --dart-define="HAMA_AUTH_DOMAIN=$HAMA_AUTH_DOMAIN"
 
 #       - name: Deploy to GitHub Pages
 #         uses: peaceiris/actions-gh-pages@v4
@@ -94,17 +160,14 @@ jobs:
           echo "Supabase configuration is available."
 
       - name: Build Flutter Web
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          HAMA_AUTH_DOMAIN: ${{ secrets.HAMA_AUTH_DOMAIN }}
         run: |
           flutter build web \
             --release \
-            --base-href="/${{ github.event.repository.name }}/" \
-            --dart-define="SUPABASE_URL=$SUPABASE_URL" \
-            --dart-define="SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY" \
-            --dart-define="HAMA_AUTH_DOMAIN=$HAMA_AUTH_DOMAIN"
+            --base-href="/HamaFood/" \
+            --dart-define="SUPABASE_URL=${{ secrets.SUPABASE_URL }}" \
+            --dart-define="SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}" \
+            --dart-define="HAMA_AUTH_DOMAIN=${{ secrets.HAMA_AUTH_DOMAIN }}" \
+            --dart-define="HAMA_VAPID_PUBLIC_KEY=${{ secrets.HAMA_VAPID_PUBLIC_KEY }}"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
