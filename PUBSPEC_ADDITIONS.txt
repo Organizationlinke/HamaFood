@@ -1,0 +1,7 @@
+Add these dependencies to your project pubspec.yaml under dependencies:
+
+  file_picker: ^8.1.7
+  url_launcher: ^6.3.1
+
+Then run:
+  flutter pub get

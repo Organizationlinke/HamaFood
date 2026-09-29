@@ -1,0 +1,3 @@
+.vscode/hama_work.env.json
+.dart_tool/
+build/
