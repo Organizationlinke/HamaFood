@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,9 @@ import '../services/localization.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import '../theme.dart';
+import '../services/realtime_service.dart';
+import '../core/supabase_client.dart';
+import '../widgets/chat_bubble.dart';
 
 class MessageDetailScreen extends ConsumerStatefulWidget {
   final String messageId;
@@ -20,9 +24,31 @@ class MessageDetailScreen extends ConsumerStatefulWidget {
 
 class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
   Future<MessageItem> _load() => ref.read(repoProvider).messageById(widget.messageId);
+  RealtimeChannel? _realtimeChannel;
+
+  @override
+  void dispose() {
+    final channel = _realtimeChannel;
+    if (channel != null) {
+      supabase.removeChannel(channel);
+    }
+    super.dispose();
+  }
+
+  void _startRealtime() {
+    if (_realtimeChannel != null) return;
+    _realtimeChannel = HamaRealtime.messageComments(
+      messageId: widget.messageId,
+      onChange: () {
+        if (!mounted) return;
+        ref.invalidate(messageCommentsProvider(widget.messageId));
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    _startRealtime();
     return AppScaffold(
       title: 'Messages',
       showBack: true,
@@ -132,30 +158,20 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                       comments.when(
                         loading: () => const LinearProgressIndicator(),
                         error: (e, _) => Text('$e'),
-                        data: (items) => items.isEmpty
-                            ? const _ReplyEmpty()
-                            : Column(
-                                children: items.map((comment) => Container(
-                                  width: double.infinity,
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(color: HamaColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: HamaColors.border)),
-                                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                    UserAvatar(user: AvatarData(comment.creatorName, comment.creatorAvatarUrl), radius: 21),
-                                    const SizedBox(width: 10),
-                                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Row(children: [
-                                        Expanded(child: Text(comment.creatorName, style: const TextStyle(fontWeight: FontWeight.w900))),
-                                        Text(dateTimeText(comment.createdAt), style: const TextStyle(fontSize: 11, color: HamaColors.muted)),
-                                      ]),
-                                      const SizedBox(height: 6),
-                                      Text(comment.content, style: const TextStyle(height: 1.35)),
-                                      const SizedBox(height: 8),
-                                      _commentAttachments(comment.id),
-                                    ])),
-                                  ]),
+                        data: (items) {
+                              if (items.isEmpty) return const _ReplyEmpty();
+                              final me = profile?.id;
+                              return Column(
+                                children: items.map((comment) => HamaChatBubble(
+                                  isMine: comment.createdBy == me,
+                                  name: comment.creatorName,
+                                  avatarUrl: comment.creatorAvatarUrl,
+                                  content: comment.content,
+                                  createdAt: comment.createdAt,
+                                  attachments: _commentAttachments(comment.id),
                                 )).toList(),
-                              ),
+                              );
+                            },
                       ),
                       TextButton.icon(
                         onPressed: _reply,

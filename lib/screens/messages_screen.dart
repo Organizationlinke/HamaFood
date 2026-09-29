@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hama_work/theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../services/localization.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
+import '../services/realtime_service.dart';
+import '../core/supabase_client.dart';
 
 class MessagesScreen extends ConsumerStatefulWidget {
   const MessagesScreen({super.key});
@@ -17,6 +20,32 @@ class MessagesScreen extends ConsumerStatefulWidget {
 class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   String? selectedId;
   Future<List<Profile>>? recipientsFuture;
+  RealtimeChannel? _realtimeChannel;
+
+  @override
+  void dispose() {
+    final channel = _realtimeChannel;
+    if (channel != null) {
+      supabase.removeChannel(channel);
+    }
+    super.dispose();
+  }
+
+  void _startRealtime() {
+    if (_realtimeChannel != null) return;
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _realtimeChannel = HamaRealtime.messagesForUser(
+      userId: userId,
+      onChange: () {
+        if (!mounted) return;
+        ref.invalidate(messagesProvider);
+        ref.invalidate(notificationsProvider);
+        ref.invalidate(dashboardProvider);
+      },
+    );
+  }
 
   void _select(String id) {
     setState(() {
@@ -27,6 +56,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _startRealtime();
     return AppScaffold(
       title: 'Messages',
       actions: [

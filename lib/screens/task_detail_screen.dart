@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
@@ -8,6 +9,9 @@ import '../services/localization.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import '../theme.dart';
+import '../services/realtime_service.dart';
+import '../core/supabase_client.dart';
+import '../widgets/chat_bubble.dart';
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
   final String taskId;
@@ -21,6 +25,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     with SingleTickerProviderStateMixin {
   late Future<Task> _taskFuture;
   Set<String> _permissions = <String>{};
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
@@ -39,7 +44,27 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     } catch (_) {}
   }
 
-  bool _can(String key) => _permissions.contains(key); 
+  bool _can(String key) => _permissions.contains(key);
+
+  void _startRealtime() {
+    if (_realtimeChannel != null) return;
+    _realtimeChannel = HamaRealtime.taskComments(
+      taskId: widget.taskId,
+      onChange: () {
+        if (!mounted) return;
+        ref.invalidate(taskCommentsProvider(widget.taskId));
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    final channel = _realtimeChannel;
+    if (channel != null) {
+      supabase.removeChannel(channel);
+    }
+    super.dispose();
+  }
 
   Future<void> _refresh() async {
     setState(() {
@@ -52,6 +77,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    _startRealtime();
     return AppScaffold(
       title: 'Tasks',
       showBack: true,
@@ -328,17 +354,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                     error: (e, _) => Text('$e'),
                     data: (items) {
                       if (items.isEmpty) return const T('No messages');
+                      final me = ref.read(profileProvider).valueOrNull?.id;
                       return Column(
-                        children: items.map((comment) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: UserAvatar(user: AvatarData(comment.creatorName, comment.creatorAvatarUrl), radius: 20),
-                          title: Text(comment.creatorName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(comment.content),
-                            const SizedBox(height: 6),
-                            _commentAttachments(comment),
-                          ]),
-                          trailing: Text(shortDate(comment.createdAt)),
+                        children: items.map((comment) => HamaChatBubble(
+                          isMine: comment.createdBy == me,
+                          name: comment.creatorName,
+                          avatarUrl: comment.creatorAvatarUrl,
+                          content: comment.content,
+                          createdAt: comment.createdAt,
+                          attachments: _commentAttachments(comment),
                         )).toList(),
                       );
                     },

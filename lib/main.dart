@@ -38,6 +38,12 @@ Future<void> main() async {
     await Supabase.initialize(
       url: AppConfig.url.trim(),
       publishableKey: AppConfig.publishableKey.trim(),
+      // Keep the authenticated session across browser refreshes/restarts.
+      // The password itself is never stored by Hama Work.
+      authOptions: const FlutterAuthClientOptions(
+        autoRefreshToken: true,
+        // persistSession: true,
+      ),
     );
   } catch (e) {
     runApp(
