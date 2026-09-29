@@ -80,4 +80,24 @@ class HamaRealtime {
         )
         .subscribe();
   }
+  static RealtimeChannel notificationsForUser({
+    required String userId,
+    required void Function() onChange,
+  }) {
+    return supabase
+        .channel('hama-notifications-$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (_) => onChange(),
+        )
+        .subscribe();
+  }
+
 }

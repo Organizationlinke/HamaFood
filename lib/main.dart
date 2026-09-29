@@ -42,7 +42,6 @@ Future<void> main() async {
       // The password itself is never stored by Hama Work.
       authOptions: const FlutterAuthClientOptions(
         autoRefreshToken: true,
-        // persistSession: true,
       ),
     );
   } catch (e) {
@@ -87,7 +86,6 @@ class HamaWorkApp extends ConsumerStatefulWidget {
 
 class _HamaWorkAppState extends ConsumerState<HamaWorkApp> {
   late final GoRouter router;
-  Timer? _backgroundTimer;
   StreamSubscription<AuthState>? _authSub;
 
   @override
@@ -166,21 +164,10 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp> {
       ref.invalidate(notificationsProvider);
       ref.invalidate(dashboardProvider);
     });
-
-    _backgroundTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) {
-        if (!mounted) return;
-        if (Supabase.instance.client.auth.currentSession == null) return;
-        ref.invalidate(dashboardProvider);
-        ref.invalidate(notificationsProvider);
-      },
-    );
   }
 
   @override
   void dispose() {
-    _backgroundTimer?.cancel();
     _authSub?.cancel();
     super.dispose();
   }

@@ -1,13 +1,15 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/providers.dart';
 import '../services/localization.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import '../theme.dart';
 import '../models/models.dart';
+import '../services/realtime_service.dart';
+import '../core/supabase_client.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -17,26 +19,35 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
-  Timer? _timer;
+  RealtimeChannel? _realtimeChannel;
 
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (!mounted) return;
-      ref.invalidate(notificationsProvider);
-      ref.invalidate(dashboardProvider);
-    });
+  void _startRealtime() {
+    if (_realtimeChannel != null) return;
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _realtimeChannel = HamaRealtime.notificationsForUser(
+      userId: userId,
+      onChange: () {
+        if (!mounted) return;
+        ref.invalidate(notificationsProvider);
+        ref.invalidate(dashboardProvider);
+      },
+    );
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    final channel = _realtimeChannel;
+    if (channel != null) {
+      supabase.removeChannel(channel);
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    _startRealtime();
     return AppScaffold(
       title: 'Notifications',
       actions: [
