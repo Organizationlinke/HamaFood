@@ -23,12 +23,19 @@ class MessageDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
-  Future<MessageItem> _load() => ref.read(repoProvider).messageById(widget.messageId);
+  late Future<MessageItem> _messageFuture;
   RealtimeChannel? _realtimeChannel;
 
   final TextEditingController _composerController = TextEditingController();
   final List<PlatformFile> _composerFiles = <PlatformFile>[];
   bool _sending = false;
+  final Set<String> _composerUploaded = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _messageFuture = ref.read(repoProvider).messageById(widget.messageId);
+  }
 
   @override
   void dispose() {
@@ -59,7 +66,7 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       showBack: true,
       backRoute: '/messages',
       body: FutureBuilder<MessageItem>(
-        future: _load(),
+        future: _messageFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) return const LoadingView();
           if (snapshot.hasError) return ErrorView(snapshot.error!);
@@ -217,44 +224,97 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
         color: Colors.white,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                tooltip: tr('Add attachment'),
-                onPressed: _pickComposerFiles,
-                icon: const Icon(Icons.attach_file_rounded),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _composerController,
-                  minLines: 1,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    hintText: tr('Write a comment...'),
-                    filled: true,
-                    fillColor: HamaColors.surface,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              if (_composerFiles.isNotEmpty) _composerFilesPreview(),
+              const SizedBox(height: 4),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  IconButton(
+                    tooltip: tr('Add attachment'),
+                    onPressed: _sending ? null : _pickComposerFiles,
+                    icon: const Icon(Icons.attach_file_rounded),
                   ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              IconButton.filled(
-                onPressed: _sending ? null : _sendComposer,
-                tooltip: tr('Send'),
-                icon: _sending
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.send_rounded),
+                  Expanded(
+                    child: TextField(
+                      controller: _composerController,
+                      minLines: 1,
+                      maxLines: 5,
+                      enabled: !_sending,
+                      decoration: InputDecoration(
+                        hintText: tr('Write a comment...'),
+                        filled: true,
+                        fillColor: HamaColors.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton.filled(
+                    onPressed: _sending ? null : _sendComposer,
+                    tooltip: tr('Send'),
+                    icon: _sending
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.send_rounded),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+
+  Widget _composerFilesPreview() {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 150),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+      decoration: BoxDecoration(
+        color: HamaColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: HamaColors.border),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        itemCount: _composerFiles.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (_, index) {
+          final file = _composerFiles[index];
+          final uploaded = _composerUploaded.contains(file.name);
+          return ListTile(
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            leading: CircleAvatar(
+              radius: 17,
+              child: Icon(uploaded ? Icons.check_rounded : Icons.insert_drive_file_outlined, size: 18),
+            ),
+            title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(uploaded ? tr('Uploaded') : (_sending ? tr('Uploading...') : '${_fileSize(file.size)} • ${tr('Ready to send')}')),
+            trailing: _sending && !uploaded
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : IconButton(
+                    onPressed: _sending ? null : () => setState(() => _composerFiles.removeAt(index)),
+                    icon: const Icon(Icons.close_rounded, size: 19),
+                  ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _fileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   Future<void> _pickComposerFiles() async {
@@ -265,9 +325,12 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp'],
     );
     if (result != null && mounted) {
-      setState(() => _composerFiles
-        ..clear()
-        ..addAll(result.files.where((f) => f.bytes != null)));
+      setState(() {
+        _composerUploaded.clear();
+        _composerFiles
+          ..clear()
+          ..addAll(result.files.where((f) => f.bytes != null));
+      });
     }
   }
 
@@ -277,7 +340,7 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
     setState(() => _sending = true);
     try {
       final commentId = await ref.read(repoProvider).addMessageComment(widget.messageId, text);
-      for (final file in _composerFiles) {
+      for (final file in List<PlatformFile>.from(_composerFiles)) {
         if (file.bytes != null) {
           await ref.read(repoProvider).uploadAttachment(
             messageCommentId: commentId,
@@ -285,10 +348,13 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
             bytes: file.bytes!,
             mimeType: _mimeFor(file.extension ?? ''),
           );
+          if (mounted) setState(() => _composerUploaded.add(file.name));
         }
       }
+      await Future<void>.delayed(const Duration(milliseconds: 450));
       _composerController.clear();
       _composerFiles.clear();
+      _composerUploaded.clear();
       ref.invalidate(messageCommentsProvider(widget.messageId));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));

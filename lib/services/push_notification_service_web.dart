@@ -23,9 +23,36 @@ class HamaPushNotificationService {
 
   Future<bool> isEnabled() async {
     if (_vapidPublicKey.trim().isEmpty) return false;
+    final user = supabase.auth.currentUser;
+    if (user == null) return false;
     try {
-      final result = await _call('isSubscribed', [_vapidPublicKey]);
-      return result == true;
+      // The database flag is the user's Hama Work preference.
+      // The browser subscription is then checked separately so the switch
+      // stays ON across page reloads without blindly re-enabling a user who
+      // explicitly turned notifications OFF.
+      final rows = await supabase
+          .from('user_push_subscriptions')
+          .select('endpoint, active')
+          .eq('user_id', user.id)
+          .eq('platform', 'web')
+          .eq('active', true)
+          .limit(1);
+      if (rows.isEmpty) return false;
+
+      final browserSubscription = await _call('getSubscription', []);
+      if (browserSubscription is Map && browserSubscription['endpoint'] != null) {
+        return rows.any((row) =>
+            row['endpoint']?.toString() == browserSubscription['endpoint'].toString());
+      }
+
+      // Permission may still be granted after a browser/service-worker restart.
+      // Re-create the subscription only when the user had already enabled it.
+      final raw = await _call('subscribe', [_vapidPublicKey]);
+      if (raw != null) {
+        await _saveSubscription(user.id, raw);
+        return true;
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -79,21 +106,7 @@ class HamaPushNotificationService {
         ),
       );
 
-      await supabase.from('user_push_subscriptions').upsert(
-        {
-          'user_id': user.id,
-          'endpoint': data['endpoint'],
-          'p256dh': keys['p256dh'],
-          'auth': keys['auth'],
-          'expiration_time': data['expirationTime'],
-          'platform': 'web',
-          'user_agent': data['userAgent'],
-          'active': true,
-          'last_seen_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-        onConflict: 'endpoint',
-      );
+      await _saveSubscription(user.id, data);
 
       return const PushNotificationStatus(
         supported: true,
@@ -107,6 +120,32 @@ class HamaPushNotificationService {
         message: 'Could not enable browser notifications: $e',
       );
     }
+  }
+
+  Future<void> _saveSubscription(String userId, dynamic raw) async {
+    final data = Map<String, dynamic>.from(
+      (raw as Map).map((key, value) => MapEntry(key.toString(), value)),
+    );
+    final keys = Map<String, dynamic>.from(
+      (data['keys'] as Map).map(
+        (key, value) => MapEntry(key.toString(), value),
+      ),
+    );
+    await supabase.from('user_push_subscriptions').upsert(
+      {
+        'user_id': userId,
+        'endpoint': data['endpoint'],
+        'p256dh': keys['p256dh'],
+        'auth': keys['auth'],
+        'expiration_time': data['expirationTime'],
+        'platform': 'web',
+        'user_agent': data['userAgent'],
+        'active': true,
+        'last_seen_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      onConflict: 'endpoint',
+    );
   }
 
   Future<void> disable() async {

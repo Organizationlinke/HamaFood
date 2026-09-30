@@ -24,17 +24,20 @@ class TaskDetailScreen extends ConsumerStatefulWidget {
 class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     with SingleTickerProviderStateMixin {
   late Future<Task> _taskFuture;
+  late Future<List<TaskStage>> _stagesFuture;
   Set<String> _permissions = <String>{};
   RealtimeChannel? _realtimeChannel;
   RealtimeChannel? _followerNotesChannel;
   final TextEditingController _taskChatController = TextEditingController();
   final List<PlatformFile> _taskChatFiles = <PlatformFile>[];
   bool _taskChatSending = false;
+  final Set<String> _taskChatUploaded = <String>{};
 
   @override
   void initState() {
     super.initState();
     _taskFuture = ref.read(repoProvider).taskById(widget.taskId);
+    _stagesFuture = ref.read(repoProvider).taskStages(widget.taskId);
     _loadPermissions();
   }
 
@@ -85,6 +88,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   Future<void> _refresh() async {
     setState(() {
       _taskFuture = ref.read(repoProvider).taskById(widget.taskId);
+      _stagesFuture = ref.read(repoProvider).taskStages(widget.taskId);
     });
     await _taskFuture;
   }
@@ -111,7 +115,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
           final comments = ref.watch(taskCommentsProvider(widget.taskId));
 
           return FutureBuilder<List<TaskStage>>(
-            future: ref.read(repoProvider).taskStages(task.id),
+            future: _stagesFuture,
             builder: (context, stageSnap) {
               if (!stageSnap.hasData) return const LoadingView();
               final stages = stageSnap.data!;
@@ -399,46 +403,99 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         color: Colors.white,
         child: Padding(
           padding: EdgeInsets.fromLTRB(10, 8, 10, isMobile ? 8 : 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              if (_can('attachments.upload'))
-                IconButton(
-                  tooltip: tr('Add attachment'),
-                  onPressed: _pickTaskChatFiles,
-                  icon: const Icon(Icons.attach_file_rounded),
-                ),
-              Expanded(
-                child: TextField(
-                  controller: _taskChatController,
-                  minLines: 1,
-                  maxLines: 5,
-                  textInputAction: TextInputAction.newline,
-                  decoration: InputDecoration(
-                    hintText: tr('Write a comment...'),
-                    filled: true,
-                    fillColor: HamaColors.surface,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
+              if (_taskChatFiles.isNotEmpty) _taskChatFilesPreview(),
+              const SizedBox(height: 4),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (_can('attachments.upload'))
+                    IconButton(
+                      tooltip: tr('Add attachment'),
+                      onPressed: _taskChatSending ? null : _pickTaskChatFiles,
+                      icon: const Icon(Icons.attach_file_rounded),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                  Expanded(
+                    child: TextField(
+                      controller: _taskChatController,
+                      minLines: 1,
+                      maxLines: 5,
+                      enabled: !_taskChatSending,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: tr('Write a comment...'),
+                        filled: true,
+                        fillColor: HamaColors.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              IconButton.filled(
-                tooltip: tr('Send'),
-                onPressed: _taskChatSending ? null : _sendTaskChat,
-                icon: _taskChatSending
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.send_rounded),
+                  const SizedBox(width: 6),
+                  IconButton.filled(
+                    tooltip: tr('Send'),
+                    onPressed: _taskChatSending ? null : _sendTaskChat,
+                    icon: _taskChatSending
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.send_rounded),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+
+  Widget _taskChatFilesPreview() {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 150),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+      decoration: BoxDecoration(
+        color: HamaColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: HamaColors.border),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        itemCount: _taskChatFiles.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (_, index) {
+          final file = _taskChatFiles[index];
+          final uploaded = _taskChatUploaded.contains(file.name);
+          return ListTile(
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            leading: CircleAvatar(
+              radius: 17,
+              child: Icon(uploaded ? Icons.check_rounded : Icons.insert_drive_file_outlined, size: 18),
+            ),
+            title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(uploaded ? tr('Uploaded') : (_taskChatSending ? tr('Uploading...') : '${_taskFileSize(file.size)} • ${tr('Ready to send')}')),
+            trailing: _taskChatSending && !uploaded
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : IconButton(
+                    onPressed: _taskChatSending ? null : () => setState(() => _taskChatFiles.removeAt(index)),
+                    icon: const Icon(Icons.close_rounded, size: 19),
+                  ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _taskFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   Future<void> _pickTaskChatFiles() async {
@@ -449,7 +506,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp'],
     );
     if (result != null && mounted) {
-      setState(() => _taskChatFiles.addAll(result.files.where((f) => f.bytes != null)));
+      setState(() {
+        _taskChatUploaded.clear();
+        _taskChatFiles.addAll(result.files.where((f) => f.bytes != null));
+      });
     }
   }
 
@@ -459,7 +519,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     setState(() => _taskChatSending = true);
     try {
       final comment = await ref.read(repoProvider).addTaskComment(widget.taskId, text);
-      for (final file in _taskChatFiles) {
+      for (final file in List<PlatformFile>.from(_taskChatFiles)) {
         if (file.bytes != null) {
           await ref.read(repoProvider).uploadAttachment(
             taskCommentId: comment.id,
@@ -467,10 +527,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             bytes: file.bytes!,
             mimeType: _mimeFor(file.extension ?? ''),
           );
+          if (mounted) setState(() => _taskChatUploaded.add(file.name));
         }
       }
+      await Future<void>.delayed(const Duration(milliseconds: 450));
       _taskChatController.clear();
       _taskChatFiles.clear();
+      _taskChatUploaded.clear();
       ref.invalidate(taskCommentsProvider(widget.taskId));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));

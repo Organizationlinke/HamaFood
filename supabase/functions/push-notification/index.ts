@@ -80,46 +80,54 @@ Deno.serve(async (req) => {
       },
     });
 
-    let sent = 0;
-    let removed = 0;
-
-    for (const subscription of subscriptions) {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: subscription.endpoint,
-            keys: {
-              p256dh: subscription.p256dh,
-              auth: subscription.auth,
-            },
-          },
-          pushPayload,
-          {
-            TTL: 60 * 60 * 24,
-          },
-        );
-        sent++;
-      } catch (error) {
-        const statusCode = (error as { statusCode?: number })?.statusCode;
-
-        // Browser subscriptions that return 404/410 are expired/unusable.
-        if (statusCode === 404 || statusCode === 410) {
-          await supabaseFetch(
-            `user_push_subscriptions?id=eq.${encodeURIComponent(String(subscription.id))}`,
+    // Send to all active browser subscriptions in parallel. A slow/expired
+    // subscription must not hold up the other devices.
+    const results = await Promise.allSettled(
+      subscriptions.map(async (subscription: { id: string; endpoint: string; p256dh: string; auth: string }) => {
+        try {
+          await webpush.sendNotification(
             {
-              method: "PATCH",
-              body: JSON.stringify({
-                active: false,
-                updated_at: new Date().toISOString(),
-              }),
+              endpoint: subscription.endpoint,
+              keys: {
+                p256dh: subscription.p256dh,
+                auth: subscription.auth,
+              },
+            },
+            pushPayload,
+            {
+              // Hama Work notifications are action-oriented; ask the push
+              // service to deliver them with high urgency and a short TTL.
+              TTL: 60,
+              urgency: "high",
+              topic: `h-${String(record.id).replaceAll("-", "").slice(0, 31)}`,
             },
           );
-          removed++;
-        } else {
+          return { sent: 1, removed: 0 };
+        } catch (error) {
+          const statusCode = (error as { statusCode?: number })?.statusCode;
+          if (statusCode === 404 || statusCode === 410) {
+            await supabaseFetch(
+              `user_push_subscriptions?id=eq.${encodeURIComponent(String(subscription.id))}`,
+              {
+                method: "PATCH",
+                body: JSON.stringify({
+                  active: false,
+                  updated_at: new Date().toISOString(),
+                }),
+              },
+            );
+            return { sent: 0, removed: 1 };
+          }
           console.error("Push delivery failed", error);
+          return { sent: 0, removed: 0 };
         }
-      }
-    }
+      }),
+    );
+
+    const sent = results.reduce((sum, result) =>
+      sum + (result.status === "fulfilled" ? result.value.sent : 0), 0);
+    const removed = results.reduce((sum, result) =>
+      sum + (result.status === "fulfilled" ? result.value.removed : 0), 0);
 
     return json({
       ok: true,
