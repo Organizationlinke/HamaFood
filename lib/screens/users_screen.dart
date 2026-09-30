@@ -119,6 +119,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
       'PURCH': 'Purchasing',
       'LOG': 'Logistics',
       'QUALITY': 'Quality',
+      'PLAN': 'Planing',
+      'WHERHOUS': 'Wherhousing',
     };
 
     await showDialog<void>(

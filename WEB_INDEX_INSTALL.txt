@@ -1,7 +1,0 @@
-Add this line in your existing web/index.html before flutter_bootstrap.js:
-
-<script src="push_bridge.js"></script>
-
-Keep these two files at web root:
-- push_bridge.js
-- push_service_worker.js

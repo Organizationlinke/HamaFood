@@ -1,5 +1,0 @@
-In .vscode/hama_work.env.json add:
-
-"HAMA_VAPID_PUBLIC_KEY": "YOUR_VAPID_PUBLIC_KEY"
-
-The private key must never be added to this file.
