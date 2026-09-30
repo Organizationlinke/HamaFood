@@ -37,6 +37,8 @@ async function supabaseFetch(path: string, init: RequestInit = {}) {
 }
 
 Deno.serve(async (req) => {
+  console.log("PUSH FUNCTION START", { method: req.method });
+
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   if (!webhookSecret || req.headers.get("x-hama-webhook-secret") !== webhookSecret) {
@@ -46,6 +48,12 @@ Deno.serve(async (req) => {
   try {
     const payload = await req.json();
     const record = payload?.record;
+
+    console.log("PUSH WEBHOOK RECEIVED", {
+      hasRecord: !!record,
+      notificationId: record?.id ?? null,
+      userId: record?.user_id ?? null,
+    });
 
     if (!record?.user_id) {
       return json({ ok: true, skipped: "notification has no user_id" });
@@ -63,6 +71,11 @@ Deno.serve(async (req) => {
     }
 
     const subscriptions = await subResponse.json();
+
+    console.log("PUSH SUBSCRIPTIONS LOADED", {
+      userId,
+      count: Array.isArray(subscriptions) ? subscriptions.length : 0,
+    });
 
     const title = String(record.title || "Hama Work");
     const body = String(record.body || "You have a new Hama Work notification.");
@@ -82,9 +95,16 @@ Deno.serve(async (req) => {
 
     // Send to all active browser subscriptions in parallel. A slow/expired
     // subscription must not hold up the other devices.
+    console.log("PUSH SENDING", {
+      notificationId: String(record.id),
+      subscriptionCount: subscriptions.length,
+      topic: `h-${String(record.id).replaceAll("-", "").slice(0, 30)}`,
+    });
+
     const results = await Promise.allSettled(
       subscriptions.map(async (subscription: { id: string; endpoint: string; p256dh: string; auth: string }) => {
         try {
+          console.log("PUSH SEND ATTEMPT", { subscriptionId: subscription.id });
           await webpush.sendNotification(
             {
               endpoint: subscription.endpoint,
@@ -99,12 +119,18 @@ Deno.serve(async (req) => {
               // service to deliver them with high urgency and a short TTL.
               TTL: 60,
               urgency: "high",
-              topic: `h-${String(record.id).replaceAll("-", "").slice(0, 31)}`,
+              topic: `h-${String(record.id).replaceAll("-", "").slice(0, 30)}`,
             },
           );
+          console.log("PUSH SEND SUCCESS", { subscriptionId: subscription.id });
           return { sent: 1, removed: 0 };
         } catch (error) {
           const statusCode = (error as { statusCode?: number })?.statusCode;
+          console.error("PUSH SEND ERROR", {
+            subscriptionId: subscription.id,
+            statusCode: statusCode ?? null,
+            error: error instanceof Error ? error.message : String(error),
+          });
           if (statusCode === 404 || statusCode === 410) {
             await supabaseFetch(
               `user_push_subscriptions?id=eq.${encodeURIComponent(String(subscription.id))}`,
@@ -129,6 +155,13 @@ Deno.serve(async (req) => {
     const removed = results.reduce((sum, result) =>
       sum + (result.status === "fulfilled" ? result.value.removed : 0), 0);
 
+    console.log("PUSH COMPLETE", {
+      notificationId: String(record.id),
+      sent,
+      removed,
+      subscriptionCount: subscriptions.length,
+    });
+
     return json({
       ok: true,
       notificationId: record.id,
@@ -136,7 +169,7 @@ Deno.serve(async (req) => {
       removed,
     });
   } catch (error) {
-    console.error(error);
+    console.error("PUSH FUNCTION ERROR", error);
     return json(
       { error: error instanceof Error ? error.message : String(error) },
       500,
