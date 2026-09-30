@@ -291,19 +291,106 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                 ),
                 if (audience == 'selected') ...[
                   const SizedBox(height: 12),
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 300),
-                    decoration: BoxDecoration(border: Border.all(color: Theme.of(context).dividerColor), borderRadius: BorderRadius.circular(12)),
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: users.map((u) => CheckboxListTile(
-                        value: selected.contains(u.id),
-                        title: Text(u.fullName),
-                        subtitle: Text('@${u.username}'),
-                        onChanged: (v) => setDialogState(() => v == true ? selected.add(u.id) : selected.remove(u.id)),
-                      )).toList(),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${tr('Selected users')}: ${selected.length}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final result = await showModalBottomSheet<Set<String>>(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (sheetContext) {
+                              final search = TextEditingController();
+                              Set<String> temp = {...selected};
+                              return StatefulBuilder(
+                                builder: (context, setSheetState) => SafeArea(
+                                  child: SizedBox(
+                                    height: MediaQuery.sizeOf(context).height * .78,
+                                    child: Column(
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: TextField(
+                                            controller: search,
+                                            decoration: InputDecoration(
+                                              prefixIcon: const Icon(Icons.search),
+                                              hintText: tr('Search users'),
+                                            ),
+                                            onChanged: (_) => setSheetState(() {}),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: ListView(
+                                            children: users.where((u) {
+                                              final q = search.text.trim().toLowerCase();
+                                              return q.isEmpty ||
+                                                  u.fullName.toLowerCase().contains(q) ||
+                                                  u.username.toLowerCase().contains(q);
+                                            }).map((u) => CheckboxListTile(
+                                              dense: true,
+                                              value: temp.contains(u.id),
+                                              title: Text(u.fullName),
+                                              subtitle: Text('@${u.username}'),
+                                              onChanged: (v) => setSheetState(() {
+                                                if (v == true) {
+                                                  temp.add(u.id);
+                                                } else {
+                                                  temp.remove(u.id);
+                                                }
+                                              }),
+                                            )).toList(),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: FilledButton(
+                                            onPressed: () => Navigator.pop(sheetContext, temp),
+                                            child: Text(tr('Done')),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                          if (result != null) setDialogState(() {
+                            selected
+                              ..clear()
+                              ..addAll(result);
+                          });
+                        },
+                        icon: const Icon(Icons.people_outline),
+                        label: Text(tr('Choose')),
+                      ),
+                    ],
                   ),
+                  if (selected.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 42,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: selected.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 6),
+                        itemBuilder: (_, index) {
+                          final id = selected.elementAt(index);
+                          final u = users.firstWhere((x) => x.id == id);
+                          return InputChip(
+                            avatar: UserAvatar(user: u, radius: 13),
+                            label: Text(u.fullName, overflow: TextOverflow.ellipsis),
+                            onDeleted: () => setDialogState(() => selected.remove(id)),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 12),
                 TextField(controller: content, maxLines: 8, decoration: InputDecoration(labelText: tr('Message'))),

@@ -26,12 +26,17 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
   Future<MessageItem> _load() => ref.read(repoProvider).messageById(widget.messageId);
   RealtimeChannel? _realtimeChannel;
 
+  final TextEditingController _composerController = TextEditingController();
+  final List<PlatformFile> _composerFiles = <PlatformFile>[];
+  bool _sending = false;
+
   @override
   void dispose() {
     final channel = _realtimeChannel;
     if (channel != null) {
       supabase.removeChannel(channel);
     }
+    _composerController.dispose();
     super.dispose();
   }
 
@@ -62,132 +67,236 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
           final message = snapshot.data!;
           final profile = ref.watch(profileProvider).valueOrNull;
           final allUsers = ref.watch(usersProvider).valueOrNull ?? const <Profile>[];
-          final senderProfile = message.createdBy == null ? null : allUsers.where((u) => u.id == message.createdBy).isEmpty ? null : allUsers.firstWhere((u) => u.id == message.createdBy);
+          final senderProfile = message.createdBy == null
+              ? null
+              : allUsers.where((u) => u.id == message.createdBy).isEmpty
+                  ? null
+                  : allUsers.firstWhere((u) => u.id == message.createdBy);
           final comments = ref.watch(messageCommentsProvider(widget.messageId));
           final recipients = ref.watch(messageRecipientsProvider(widget.messageId));
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
+          return Column(
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          UserAvatar(user: senderProfile ?? AvatarData(message.senderName, message.senderAvatarUrl), radius: 24),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              message.senderName,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                UserAvatar(
+                                  user: senderProfile ?? AvatarData(message.senderName, message.senderAvatarUrl),
+                                  radius: 24,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    message.senderName,
+                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                Text(dateTimeText(message.createdAt), style: const TextStyle(fontSize: 12, color: HamaColors.muted)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(message.content, style: const TextStyle(fontSize: 17)),
+                            const SizedBox(height: 10),
+                            Text('${tr('Seen')}: ${message.seenCount}/${message.recipientCount}'),
+                            if (message.taskId != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: FilledButton(
+                                  onPressed: () => context.go('/tasks/${message.taskId}'),
+                                  child: const T('Open Task'),
+                                ),
+                              ),
+                            if (message.taskId == null && profile?.isGm == true)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _convertToTask(message),
+                                  icon: const Icon(Icons.task_alt),
+                                  label: const T('New Task'),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const T('Recipients', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            recipients.when(
+                              loading: () => const LinearProgressIndicator(),
+                              error: (e, _) => Text('$e'),
+                              data: (users) => Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: users.map((u) => InputChip(
+                                  avatar: UserAvatar(user: u, radius: 15),
+                                  label: Text(u.fullName),
+                                  onPressed: () => showDialog<void>(
+                                    context: context,
+                                    builder: (_) => Dialog(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(18),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            UserAvatar(user: u, radius: 110),
+                                            const SizedBox(height: 10),
+                                            Text(u.fullName, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                            const SizedBox(height: 10),
+                                            TextButton(onPressed: () => Navigator.pop(context), child: const T('Close')),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )).toList(),
                               ),
                             ),
-                          ),
-                          Text(shortDate(message.createdAt)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        message.content,
-                        style: const TextStyle(fontSize: 17),
-                      ),
-                      const SizedBox(height: 10),
-                      Text('${tr('Seen')}: ${message.seenCount}/${message.recipientCount}'),
-                      if (message.taskId != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: FilledButton(
-                            onPressed: () => context.go('/tasks/${message.taskId}'),
-                            child: const T('Open Task'),
-                          ),
-                        ),
-                      if (message.taskId == null && profile?.isGm == true)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: OutlinedButton.icon(
-                            onPressed: () => _convertToTask(message),
-                            icon: const Icon(Icons.task_alt),
-                            label: const T('New Task'),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const T(
-                        'Recipients',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      recipients.when(
-                        loading: () => const LinearProgressIndicator(),
-                        error: (e, _) => Text('$e'),
-                        data: (users) => Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: users.map((u) => InputChip(avatar: UserAvatar(user: u, radius: 15), label: Text(u.fullName), onPressed: () => showDialog<void>(context: context, builder: (_) => Dialog(child: Padding(padding: const EdgeInsets.all(18), child: Column(mainAxisSize: MainAxisSize.min, children: [UserAvatar(user: u, radius: 110), const SizedBox(height: 10), Text(u.fullName, style: const TextStyle(fontWeight: FontWeight.w800)), const SizedBox(height: 10), TextButton(onPressed: () => Navigator.pop(context), child: const T('Close'))])))))).toList(),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              _attachmentsCard(),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const T(
-                        'Reply',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      comments.when(
-                        loading: () => const LinearProgressIndicator(),
-                        error: (e, _) => Text('$e'),
-                        data: (items) {
-                              if (items.isEmpty) return const _ReplyEmpty();
-                              final me = profile?.id;
-                              return Column(
-                                children: items.map((comment) => HamaChatBubble(
+                    ),
+                    _attachmentsCard(),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: comments.when(
+                          loading: () => const LinearProgressIndicator(),
+                          error: (e, _) => Text('$e'),
+                          data: (items) {
+                            if (items.isEmpty) return const _ReplyEmpty();
+                            final me = profile?.id;
+                            return Column(
+                              children: items.map((comment) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: HamaChatBubble(
                                   isMine: comment.createdBy == me,
                                   name: comment.creatorName,
                                   avatarUrl: comment.creatorAvatarUrl,
                                   content: comment.content,
                                   createdAt: comment.createdAt,
                                   attachments: _commentAttachments(comment.id),
-                                )).toList(),
-                              );
-                            },
+                                ),
+                              )).toList(),
+                            );
+                          },
+                        ),
                       ),
-                      TextButton.icon(
-                        onPressed: _reply,
-                        icon: const Icon(Icons.reply),
-                        label: const T('Reply'),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
+              _messageComposer(),
             ],
           );
         },
       ),
     );
   }
+
+
+  Widget _messageComposer() {
+    return SafeArea(
+      top: false,
+      child: Material(
+        elevation: 8,
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: tr('Add attachment'),
+                onPressed: _pickComposerFiles,
+                icon: const Icon(Icons.attach_file_rounded),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _composerController,
+                  minLines: 1,
+                  maxLines: 5,
+                  decoration: InputDecoration(
+                    hintText: tr('Write a comment...'),
+                    filled: true,
+                    fillColor: HamaColors.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton.filled(
+                onPressed: _sending ? null : _sendComposer,
+                tooltip: tr('Send'),
+                icon: _sending
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.send_rounded),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickComposerFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      withData: true,
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp'],
+    );
+    if (result != null && mounted) {
+      setState(() => _composerFiles
+        ..clear()
+        ..addAll(result.files.where((f) => f.bytes != null)));
+    }
+  }
+
+  Future<void> _sendComposer() async {
+    final text = _composerController.text.trim();
+    if (text.isEmpty && _composerFiles.isEmpty) return;
+    setState(() => _sending = true);
+    try {
+      final commentId = await ref.read(repoProvider).addMessageComment(widget.messageId, text);
+      for (final file in _composerFiles) {
+        if (file.bytes != null) {
+          await ref.read(repoProvider).uploadAttachment(
+            messageCommentId: commentId,
+            fileName: file.name,
+            bytes: file.bytes!,
+            mimeType: _mimeFor(file.extension ?? ''),
+          );
+        }
+      }
+      _composerController.clear();
+      _composerFiles.clear();
+      ref.invalidate(messageCommentsProvider(widget.messageId));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
 
   Widget _attachmentsCard() {
     return FutureBuilder<List<AttachmentItem>>(

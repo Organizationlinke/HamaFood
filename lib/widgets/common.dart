@@ -87,8 +87,52 @@ class PriorityChip extends StatelessWidget {
   }
 }
 
-String shortDate(DateTime? value) => value == null ? '—' : '${value.day}/${value.month}/${value.year}';
-String dateTimeText(DateTime? value) => value == null ? '—' : '${value.day}/${value.month}/${value.year} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+DateTime egyptLocal(DateTime value) {
+  final utc = value.toUtc();
+  final year = utc.year;
+
+  // Egypt DST: from the last Friday of April through the last Thursday of October.
+  // Using UTC boundaries keeps TIMESTAMPTZ values deterministic regardless of
+  // the device/browser timezone.
+  DateTime lastWeekdayOfMonth(int y, int month, int weekday) {
+    final last = DateTime.utc(y, month + 1, 0);
+    final delta = (last.weekday - weekday) % 7;
+    return DateTime.utc(y, month, last.day - delta);
+  }
+
+  final lastFridayApril = lastWeekdayOfMonth(year, 4, DateTime.friday);
+  final lastThursdayOctober = lastWeekdayOfMonth(year, 10, DateTime.thursday);
+  final dstStart = DateTime.utc(year, 4, lastFridayApril.day, 0);
+  final dstEnd = DateTime.utc(year, 10, lastThursdayOctober.day, 0);
+  final isDst = !utc.isBefore(dstStart) && utc.isBefore(dstEnd);
+  return utc.add(Duration(hours: isDst ? 3 : 2));
+}
+
+String dayLabel(DateTime? value) {
+  if (value == null) return '—';
+  final d = egyptLocal(value);
+  final now = egyptLocal(DateTime.now().toUtc());
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(d.year, d.month, d.day);
+  final diff = today.difference(day).inDays;
+  if (diff == 0) return tr('Today');
+  if (diff == 1) return tr('Yesterday');
+  return '${d.day}/${d.month}/${d.year}';
+}
+
+String shortDate(DateTime? value) {
+  if (value == null) return '—';
+  final d = egyptLocal(value);
+  return '${d.day}/${d.month}/${d.year}';
+}
+
+String dateTimeText(DateTime? value) {
+  if (value == null) return '—';
+  final d = egyptLocal(value);
+  return '${dayLabel(value)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+}
+
 
 class ErrorView extends StatelessWidget {
   final Object error;

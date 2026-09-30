@@ -27,6 +27,26 @@ class HamaRealtime {
         .subscribe();
   }
 
+  static RealtimeChannel taskFollowerNotes({
+    required String taskId,
+    required void Function() onChange,
+  }) {
+    return supabase
+        .channel('hama-task-follower-notes-$taskId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'task_follower_notes',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'task_id',
+            value: taskId,
+          ),
+          callback: (_) => onChange(),
+        )
+        .subscribe();
+  }
+
   static RealtimeChannel messageComments({
     required String messageId,
     required void Function() onChange,

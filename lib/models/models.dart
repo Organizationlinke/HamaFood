@@ -214,7 +214,7 @@ class TaskDailyUpdate {
   final String taskId;
   final String? stageId;
   final DateTime workDate;
-  final double quantityDone;
+  final double? quantityDone;
   final String? workNote;
   final String? createdBy;
   final String creatorName;
@@ -241,12 +241,49 @@ class TaskDailyUpdate {
       taskId: m['task_id'].toString(),
       stageId: m['stage_id']?.toString(),
       workDate: _date(m['work_date']) ?? DateTime.now(),
-      quantityDone: _num(m['quantity_done']) ?? 0,
+      quantityDone: _num(m['quantity_done']),
       workNote: m['work_note']?.toString(),
       createdBy: m['created_by']?.toString(),
       creatorName: creator is Map ? (creator['full_name'] ?? 'User').toString() : 'User',
       creatorAvatarUrl: creator is Map ? creator['avatar_url']?.toString() : null,
       createdAt: _date(m['created_at']),
+    );
+  }
+}
+
+
+class TaskFollowerNote {
+  final String id;
+  final String taskId;
+  final String createdBy;
+  final String creatorName;
+  final String? creatorAvatarUrl;
+  final String note;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+
+  const TaskFollowerNote({
+    required this.id,
+    required this.taskId,
+    required this.createdBy,
+    required this.creatorName,
+    this.creatorAvatarUrl,
+    required this.note,
+    required this.createdAt,
+    this.updatedAt,
+  });
+
+  factory TaskFollowerNote.fromMap(Map<String, dynamic> m) {
+    final creator = m['creator'];
+    return TaskFollowerNote(
+      id: m['id'].toString(),
+      taskId: m['task_id'].toString(),
+      createdBy: m['created_by'].toString(),
+      creatorName: creator is Map ? (creator['full_name'] ?? 'User').toString() : 'User',
+      creatorAvatarUrl: creator is Map ? creator['avatar_url']?.toString() : null,
+      note: (m['note'] ?? '').toString(),
+      createdAt: _date(m['created_at']) ?? DateTime.now(),
+      updatedAt: _date(m['updated_at']),
     );
   }
 }

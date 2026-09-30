@@ -12,6 +12,7 @@ final tasksProvider = FutureProvider.family<List<Task>, String>((ref, scope) => 
 final messagesProvider = FutureProvider<List<MessageItem>>((ref) => ref.watch(repoProvider).messages());
 final notificationsProvider = FutureProvider<List<NotificationItem>>((ref) => ref.watch(repoProvider).notifications());
 final taskCommentsProvider = FutureProvider.family<List<TaskComment>, String>((ref, id) => ref.watch(repoProvider).taskComments(id));
+final taskFollowerNotesProvider = FutureProvider.family<List<TaskFollowerNote>, String>((ref, id) => ref.watch(repoProvider).taskFollowerNotes(id));
 final messageCommentsProvider = FutureProvider.family<List<MessageComment>, String>((ref, id) => ref.watch(repoProvider).messageComments(id));
 final messageRecipientsProvider = FutureProvider.family<List<Profile>, String>((ref, id) => ref.watch(repoProvider).messageRecipients(id));
 final languageProvider = StateProvider<Locale>((ref) => AppI18n.locale);

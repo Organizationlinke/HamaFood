@@ -480,20 +480,12 @@ class AppRepository {
     required String taskId,
     String? stageId,
     required DateTime workDate,
-    required double quantityDone,
+    double? quantityDone,
     String? workNote,
   }) async {
-    if (quantityDone < 0) {
+    if (quantityDone != null && quantityDone < 0) {
       throw const PostgrestException(message: 'Quantity cannot be negative');
     }
-    var q = _db.from('task_daily_updates').select('id')
-        .eq('task_id', taskId)
-        .eq('created_by', _uid)
-        .eq('work_date', workDate.toIso8601String().substring(0, 10));
-    final existing = stageId == null
-        ? await q.isFilter('stage_id', null).maybeSingle()
-        : await q.eq('stage_id', stageId).maybeSingle();
-
     final data = {
       'task_id': taskId,
       'stage_id': stageId,
@@ -502,20 +494,36 @@ class AppRepository {
       'work_note': workNote?.trim().isEmpty == true ? null : workNote?.trim(),
       'created_by': _uid,
     };
-    late final Map<String, dynamic> row;
-    if (existing != null) {
-      row = Map<String, dynamic>.from(await _db.from('task_daily_updates')
-          .update(data)
-          .eq('id', existing['id'])
-          .select('id,task_id,stage_id,work_date,quantity_done,work_note,created_by,created_at,creator:profiles(full_name,avatar_url)')
-          .single());
-    } else {
-      row = Map<String, dynamic>.from(await _db.from('task_daily_updates')
-          .insert(data)
-          .select('id,task_id,stage_id,work_date,quantity_done,work_note,created_by,created_at,creator:profiles(full_name,avatar_url)')
-          .single());
-    }
-    return TaskDailyUpdate.fromMap(row);
+    final row = await _db.from('task_daily_updates')
+        .insert(data)
+        .select('id,task_id,stage_id,work_date,quantity_done,work_note,created_by,created_at,creator:profiles(full_name,avatar_url)')
+        .single();
+    return TaskDailyUpdate.fromMap(Map<String, dynamic>.from(row));
+  }
+
+  Future<List<TaskFollowerNote>> taskFollowerNotes(String taskId) async {
+    final rows = await _db
+        .from('task_follower_notes')
+        .select('id,task_id,created_by,note,created_at,updated_at,creator:profiles(full_name,avatar_url)')
+        .eq('task_id', taskId)
+        .order('created_at', ascending: false);
+    return rows.map<TaskFollowerNote>((m) => TaskFollowerNote.fromMap(Map<String, dynamic>.from(m))).toList();
+  }
+
+  Future<TaskFollowerNote> addTaskFollowerNote(String taskId, String note) async {
+    final row = await _db.from('task_follower_notes')
+        .insert({'task_id': taskId, 'created_by': _uid, 'note': note.trim()})
+        .select('id,task_id,created_by,note,created_at,updated_at,creator:profiles(full_name,avatar_url)')
+        .single();
+    return TaskFollowerNote.fromMap(Map<String, dynamic>.from(row));
+  }
+
+  Future<void> updateTaskFollowerNote(String id, String note) async {
+    await _db.from('task_follower_notes').update({'note': note.trim()}).eq('id', id);
+  }
+
+  Future<void> deleteTaskFollowerNote(String id) async {
+    await _db.from('task_follower_notes').delete().eq('id', id);
   }
 
   Future<List<TaskComment>> taskComments(String taskId) async {

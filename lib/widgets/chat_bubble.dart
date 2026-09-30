@@ -115,8 +115,9 @@ class HamaChatBubble extends StatelessWidget {
   }
 
   String _time(DateTime value) {
-    final h = value.hour.toString().padLeft(2, '0');
-    final m = value.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+    final d = egyptLocal(value);
+    final h = d.hour.toString().padLeft(2, '0');
+    final m = d.minute.toString().padLeft(2, '0');
+    return '${dayLabel(value)} $h:$m';
   }
 }

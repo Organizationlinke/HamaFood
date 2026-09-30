@@ -40,13 +40,9 @@ CREATE INDEX IF NOT EXISTS task_daily_updates_stage_idx
 CREATE INDEX IF NOT EXISTS task_daily_updates_user_idx
   ON public.task_daily_updates(created_by, work_date DESC);
 
-CREATE UNIQUE INDEX IF NOT EXISTS task_daily_updates_unique_day
-ON public.task_daily_updates(
-  task_id,
-  COALESCE(stage_id, '00000000-0000-0000-0000-000000000000'::uuid),
-  work_date,
-  created_by
-);
+-- Multiple achievement/work-log rows are intentionally allowed on the same day.
+-- Do not recreate the old unique-day index.
+DROP INDEX IF EXISTS public.task_daily_updates_unique_day;
 
 CREATE OR REPLACE FUNCTION public.set_task_progress_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
