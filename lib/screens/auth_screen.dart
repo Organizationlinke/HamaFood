@@ -67,7 +67,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     Align(alignment: AlignmentDirectional.topEnd, child: IconButton(onPressed: chooseLanguage, icon: const Icon(Icons.language_rounded))),
                     const HamaMark(size: 72),
                     const SizedBox(height: 16),
-                    const Text('Hama Work', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: HamaColors.navy)),
+                    const Text('HF Team', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: HamaColors.navy)),
                     const SizedBox(height: 6),
                     const T('Internal Work & Communication', style: TextStyle(color: HamaColors.muted)),
                     const SizedBox(height: 30),

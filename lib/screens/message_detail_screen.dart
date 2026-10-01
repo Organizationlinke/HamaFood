@@ -47,6 +47,14 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
     super.dispose();
   }
 
+  Future<void> _refresh() async {
+    setState(() {
+      _messageFuture = ref.read(repoProvider).messageById(widget.messageId);
+    });
+    await _messageFuture;
+    ref.invalidate(messageCommentsProvider(widget.messageId));
+  }
+
   void _startRealtime() {
     if (_realtimeChannel != null) return;
     _realtimeChannel = HamaRealtime.messageComments(
@@ -65,6 +73,7 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       title: 'Messages',
       showBack: true,
       backRoute: '/messages',
+      onRefresh: _refresh,
       body: FutureBuilder<MessageItem>(
         future: _messageFuture,
         builder: (context, snapshot) {

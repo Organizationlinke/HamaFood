@@ -57,7 +57,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   bool _canExecutionAction(Task task, Profile? profile, String permission) =>
       profile != null &&
       _can(permission) &&
-      (profile.isGm || profile.isManager || task.responsibleId == profile.id);
+      task.responsibleId == profile.id;
 
   void _startRealtime() {
     if (_realtimeChannel != null) return;
@@ -109,6 +109,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       title: 'Tasks',
       showBack: true,
       backRoute: '/team-tasks',
+      onRefresh: _refresh,
       body: FutureBuilder<Task>(
         future: _taskFuture,
         builder: (context, snapshot) {
@@ -134,7 +135,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               if (showProgress) { tabs.add(Tab(text: tr('Progress'))); views.add(_progressTab(task, profile)); }
               if (showStages) { tabs.add(Tab(text: tr('Stages'))); views.add(_stagesTab(task, profile)); }
               tabs.add(Tab(text: tr('Daily Work Log'))); views.add(_dailyTab(task));
-              tabs.add(Tab(text: tr('Chat'))); views.add(_chatTab(comments));
+              tabs.add(Tab(text: tr('Chat'))); views.add(_chatTab(comments, task));
 
               return DefaultTabController(
                 length: tabs.length,
@@ -282,7 +283,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         children: [
           _sectionHeader(title: 'Task Overview', subtitle: 'Details, ownership and available actions', icon: Icons.dashboard_customize_rounded),
           const SizedBox(height: 12),
-          _attachmentsCard(),
+          _attachmentsCard(task),
           const SizedBox(height: 12),
           Card(
             child: Padding(
@@ -294,7 +295,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   _kv('Status', tr(task.effectiveStatus == 'overdue' ? 'Overdue' : _statusLabel(task.status))),
                   _kv('Deadline', task.deadline == null ? '-' : shortDate(task.deadline!)),
                   _kv('Evidence required', task.evidenceRequired ? tr('Yes') : tr('No')),
-                  _kv('Manager confirmation', task.managerConfirmed ? tr('Yes') : tr('No')),
+                  _kv('Admin approval', task.managerConfirmed ? tr('Yes') : tr('No')),
                   _userKv('Responsible', userById[task.responsibleId]),
                   _userKv('Follower', userById[task.followerId]),
                   _userKv('Created by', userById[task.createdBy]),
@@ -382,7 +383,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     return _tabScroll(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_sectionHeader(title: 'Daily Work Log', subtitle: 'A clear record of what was achieved each day', icon: Icons.calendar_month_rounded), const SizedBox(height: 12), _dailySection(task)]));
   }
 
-  Widget _chatTab(AsyncValue<List<TaskComment>> comments) {
+  Widget _chatTab(AsyncValue<List<TaskComment>> comments, Task task) {
     final isMobile = MediaQuery.sizeOf(context).width < 600;
     return Column(
       children: [
@@ -420,12 +421,30 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             ],
           ),
         ),
-        _taskChatComposer(isMobile),
+        if (_taskIsClosed(task))
+          SafeArea(
+            top: false,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              color: HamaColors.surface,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.lock_outline_rounded, size: 18, color: HamaColors.muted),
+                  const SizedBox(width: 8),
+                  Text(tr('Completed tasks are read-only'), style: const TextStyle(fontWeight: FontWeight.w700, color: HamaColors.muted)),
+                ],
+              ),
+            ),
+          )
+        else
+          _taskChatComposer(isMobile, enabled: true),
       ],
     );
   }
 
-  Widget _taskChatComposer(bool isMobile) {
+  Widget _taskChatComposer(bool isMobile, {bool enabled = true}) {
     return SafeArea(
       top: false,
       child: Material(
@@ -444,7 +463,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   if (_can('attachments.upload'))
                     IconButton(
                       tooltip: tr('Add attachment'),
-                      onPressed: _taskChatSending ? null : _pickTaskChatFiles,
+                      onPressed: !enabled || _taskChatSending ? null : _pickTaskChatFiles,
                       icon: const Icon(Icons.attach_file_rounded),
                     ),
                   Expanded(
@@ -452,7 +471,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                       controller: _taskChatController,
                       minLines: 1,
                       maxLines: 5,
-                      enabled: !_taskChatSending,
+                      enabled: enabled && !_taskChatSending,
                       textInputAction: TextInputAction.newline,
                       decoration: InputDecoration(
                         hintText: tr('Write a comment...'),
@@ -469,7 +488,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   const SizedBox(width: 6),
                   IconButton.filled(
                     tooltip: tr('Send'),
-                    onPressed: _taskChatSending ? null : _sendTaskChat,
+                    onPressed: !enabled || _taskChatSending ? null : _sendTaskChat,
                     icon: _taskChatSending
                         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.send_rounded),
@@ -544,6 +563,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   }
 
   Future<void> _sendTaskChat() async {
+    final task = await ref.read(repoProvider).taskById(widget.taskId);
+    if (_taskIsClosed(task)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Completed tasks are read-only'))));
+      return;
+    }
     final text = _taskChatController.text.trim();
     if (text.isEmpty && _taskChatFiles.isEmpty) return;
     setState(() => _taskChatSending = true);
@@ -792,6 +816,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         return 'In Progress';
       case 'ready_for_completion':
         return 'Ready for Completion';
+      case 'awaiting_approval':
+        return 'Awaiting Approval';
       case 'completed':
         return 'Completed';
       case 'overdue':
@@ -806,10 +832,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   bool _canRecord(Task task, Profile? p) =>
       task.status == 'in_progress' &&
       p != null &&
-      (p.isGm ||
-          p.isManager ||
-          task.responsibleId == p.id ||
-          task.followerId == p.id);
+      (p.isGm || p.isManager || task.responsibleId == p.id || task.followerId == p.id);
+
+  bool _canWriteProgress(Task task, Profile? p) =>
+      task.status == 'in_progress' &&
+      p != null &&
+      (p.isGm || p.isManager || task.responsibleId == p.id);
+
+  bool _isFollower(Task task, Profile? p) =>
+      p != null && task.followerId == p.id && !p.isGm && !p.isManager;
+
+  bool _taskIsClosed(Task task) => task.status == 'completed';
 
   Widget _progressSection(Task task, Profile? profile) {
     return FutureBuilder<List<TaskDailyUpdate>>(
@@ -823,7 +856,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         return _proCard(
           icon: Icons.insights_rounded,
           title: 'Progress & Daily Achievement',
-          trailing: _canRecord(task, profile) ? IconButton(onPressed: () => _addDailyUpdate(task, null), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily achievement')) : null,
+          trailing: _canWriteProgress(task, profile) ? IconButton(onPressed: () => _addDailyUpdate(task, null), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily achievement')) : null,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (total != null && total > 0) ...[
               Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -876,7 +909,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         return _proCard(
           icon: Icons.account_tree_rounded,
           title: 'Task Stages',
-          trailing: canManage ? IconButton(onPressed: () => _addStage(task, stages.length + 1), icon: const Icon(Icons.add_rounded), tooltip: tr('Add stage')) : null,
+          trailing: canManage && !_taskIsClosed(task) ? IconButton(onPressed: () => _addStage(task, stages.length + 1), icon: const Icon(Icons.add_rounded), tooltip: tr('Add stage')) : null,
           child: stages.isEmpty
               ? const _EmptyInline(icon: Icons.account_tree_outlined, text: 'No stages defined.')
               : Column(children: stages.asMap().entries.map((entry) {
@@ -907,7 +940,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                                 LinearProgressIndicator(value: ratio, minHeight: 7, borderRadius: BorderRadius.circular(8)),
                               ],
                             ])),
-                            if (_canRecord(task, profile)) IconButton(onPressed: () => _addDailyUpdate(task, stage), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily achievement')),
+                            if (_canWriteProgress(task, profile)) IconButton(onPressed: () => _addDailyUpdate(task, stage), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily achievement')),
                           ]),
                           const Divider(height: 22),
                           _auditLine(stage.creatorName, stage.creatorAvatarUrl, stage.createdAt, 'Recorded by'),
@@ -933,7 +966,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         return _proCard(
           icon: Icons.calendar_month_rounded,
           title: 'Daily Work Log',
-          trailing: _canRecord(task, profile) ? IconButton(onPressed: () => _addDailyUpdate(task, null), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily work')) : null,
+          trailing: _canWriteProgress(task, profile) ? IconButton(onPressed: () => _addDailyUpdate(task, null), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily work')) : null,
           child: grouped.isEmpty
               ? const _EmptyInline(icon: Icons.event_note_outlined, text: 'No daily work recorded yet.')
               : Column(children: grouped.entries.map((entry) {
@@ -963,7 +996,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                             const SizedBox(height: 5),
                             Text(dateTimeText(u.createdAt), style: const TextStyle(fontSize: 12, color: HamaColors.muted)),
                             const SizedBox(height: 8),
-                            _dailyAttachments(u),
+                            _dailyAttachments(u, task),
                           ])),
                         ]),
                       )).toList(),
@@ -1001,6 +1034,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   }
 
   Future<void> _addStage(Task task, int order) async {
+    if (_taskIsClosed(task)) return;
     final title = TextEditingController();
     final qty = TextEditingController();
     final unit = TextEditingController();
@@ -1177,13 +1211,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     note.dispose();
   }
 
-  Widget _dailyAttachments(TaskDailyUpdate update) {
+  Widget _dailyAttachments(TaskDailyUpdate update, Task task) {
     return FutureBuilder<List<AttachmentItem>>(
       future: ref.read(repoProvider).attachmentsForDailyUpdate(update.id),
       builder: (context, snap) {
         final items = snap.data ?? const <AttachmentItem>[];
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Text(tr('Attachments'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: HamaColors.muted)), const Spacer(), if (_can('attachments.upload')) IconButton(visualDensity: VisualDensity.compact, onPressed: () => _addDailyAttachment(update), icon: const Icon(Icons.attach_file_rounded, size: 18))]),
+          Row(children: [Text(tr('Attachments'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: HamaColors.muted)), const Spacer(), if (!_taskIsClosed(task) && _can('attachments.upload')) IconButton(visualDensity: VisualDensity.compact, onPressed: () => _addDailyAttachment(update), icon: const Icon(Icons.attach_file_rounded, size: 18))]),
           if (items.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: items.map((a) => ActionChip(avatar: const Icon(Icons.insert_drive_file_outlined, size: 16), label: Text(a.fileName, overflow: TextOverflow.ellipsis), onPressed: () async { final url = await ref.read(repoProvider).attachmentUrl(a); await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'); })).toList()),
         ]);
       },
@@ -1197,7 +1231,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     if (mounted) setState(() {});
   }
 
-  Widget _attachmentsCard() {
+  Widget _attachmentsCard(Task task) {
     return FutureBuilder<List<AttachmentItem>>(
       future: ref.read(repoProvider).attachmentsForTask(widget.taskId),
       builder: (context, snap) {
@@ -1208,7 +1242,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 const Expanded(child: T('Attachments', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-                if (_can('attachments.upload')) IconButton(onPressed: _addAttachment, icon: const Icon(Icons.attach_file_rounded), tooltip: tr('Add attachment')),
+                if (!_taskIsClosed(task) && !_isFollower(task, ref.read(profileProvider).valueOrNull) && _can('attachments.upload')) IconButton(onPressed: _addAttachment, icon: const Icon(Icons.attach_file_rounded), tooltip: tr('Add attachment')),
               ]),
               const SizedBox(height: 8),
               if (snap.connectionState == ConnectionState.waiting) const LinearProgressIndicator()
@@ -1270,8 +1304,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         if (task.status == 'in_progress' && _canExecutionAction(task, profile, 'tasks.request_completion')) OutlinedButton.icon(onPressed: () => _requestCompletion(task), icon: const Icon(Icons.done_all_rounded), label: const T('Request completion')),
         if (task.status == 'ready_for_completion' && task.followerId != null && profile?.id == task.followerId)
           FilledButton.icon(onPressed: () => _reviewCompletion(task), icon: const Icon(Icons.fact_check_rounded), label: const T('Follow-up completed')),
-        if (task.status == 'ready_for_completion' && task.followerId == null && _can('tasks.confirm_completion'))
-          OutlinedButton.icon(onPressed: () => _confirm(task), icon: const Icon(Icons.verified_rounded), label: const T('Confirm completion')),
+        if ((task.status == 'awaiting_approval' || (task.status == 'ready_for_completion' && task.followerId == null)) && isAdmin)
+          FilledButton.icon(onPressed: () => _confirm(task), icon: const Icon(Icons.verified_rounded), label: const T('Approve operation')),
         if (_can('tasks.cancel') && task.status != 'cancelled' && task.status != 'completed') OutlinedButton.icon(onPressed: _cancel, icon: const Icon(Icons.cancel_outlined), label: const T('Cancel')),
         if (_can('tasks.reopen') && task.status == 'completed') OutlinedButton.icon(onPressed: _reopen, icon: const Icon(Icons.replay_rounded), label: const T('Reopen')),
         if (_can('tasks.evaluate')) FilledButton.icon(onPressed: _evaluate, icon: const Icon(Icons.star_rate_rounded), label: const T('Evaluate')),
@@ -1421,7 +1455,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     String? follower = task.followerId;
     DateTime deadline = task.deadline ?? DateTime.now().add(const Duration(days: 1));
     bool evidence = task.evidenceRequired;
-    bool confirmation = task.managerConfirmationRequired;
+    const bool confirmation = true;
 
     await showDialog<void>(
       context: context,
@@ -1474,7 +1508,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   },
                 ),
                 SwitchListTile(contentPadding: EdgeInsets.zero, value: evidence, title: const T('Evidence required'), onChanged: (v) => setDialogState(() => evidence = v)),
-                SwitchListTile(contentPadding: EdgeInsets.zero, value: confirmation, title: const T('Manager confirmation required'), onChanged: (v) => setDialogState(() => confirmation = v)),
+                const SwitchListTile(contentPadding: EdgeInsets.zero, value: true, title: T('Admin approval required'), onChanged: null),
               ]),
             ),
           ),

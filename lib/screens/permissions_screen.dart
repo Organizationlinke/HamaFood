@@ -32,7 +32,7 @@ const permissionCatalog = <String, String>{
 };
 
 const gmOnlyPermissions = <String>{
-  'tasks.create','tasks.edit','tasks.delete','users.view','users.create','users.edit','users.reset_password','permissions.manage',
+  'tasks.create','tasks.edit','tasks.delete','tasks.confirm_completion','users.view','users.create','users.edit','users.reset_password','permissions.manage',
 };
 
 class PermissionsScreen extends ConsumerStatefulWidget {

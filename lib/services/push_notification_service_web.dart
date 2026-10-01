@@ -26,7 +26,7 @@ class HamaPushNotificationService {
     final user = supabase.auth.currentUser;
     if (user == null) return false;
     try {
-      // The database flag is the user's Hama Work preference.
+      // The database flag is the user's HF Team preference.
       // The browser subscription is then checked separately so the switch
       // stays ON across page reloads without blindly re-enabling a user who
       // explicitly turned notifications OFF.

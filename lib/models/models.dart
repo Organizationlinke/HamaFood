@@ -129,7 +129,7 @@ class Task {
   bool get isDeleted => deletedAt != null || status == 'deleted';
 
   bool get isOverdue {
-    if (isDeleted || status == 'completed' || status == 'cancelled' || status == 'ready_for_completion') return false;
+    if (isDeleted || status == 'completed' || status == 'cancelled' || status == 'ready_for_completion' || status == 'awaiting_approval') return false;
     return deadline != null && deadline!.isBefore(DateTime.now());
   }
 

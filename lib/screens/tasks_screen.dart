@@ -44,195 +44,122 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
             )
           : null,
       body: ref.watch(provider).when(
-            loading: () => const LoadingView(),
-            error: (e, _) => ErrorView(
-              e,
-              retry: () => ref.invalidate(provider),
-            ),
-            data: (tasks) {
-              final users =
-                  ref.watch(usersProvider).valueOrNull ?? const <Profile>[];
-              final byId = {for (final u in users) u.id: u};
-              final filtered = status == 'all'
-                  ? tasks
-                  : tasks.where((t) => t.effectiveStatus == status).toList();
+        loading: () => const LoadingView(),
+        error: (e, _) => ErrorView(
+          e,
+          retry: () => ref.invalidate(provider),
+        ),
+        data: (tasks) {
+          final users = ref.watch(usersProvider).valueOrNull ?? const <Profile>[];
+          final byId = {for (final u in users) u.id: u};
+          final filtered = status == 'all'
+              ? tasks
+              : tasks.where((t) => t.effectiveStatus == status).toList();
 
-              return Column(
-                children: [
-                  if (!isMobile && profile?.isGm == true)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: FilledButton.icon(
-                          onPressed: () => _newTask(context),
-                          icon: const Icon(Icons.add_task),
-                          label: const T('New Task'),
+          return Column(
+            children: [
+              if (!isMobile && profile?.isGm == true)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: FilledButton.icon(
+                      onPressed: () => _newTask(context),
+                      icon: const Icon(Icons.add_task),
+                      label: const T('New Task'),
+                    ),
+                  ),
+                ),
+              if (!isMobile)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 6),
+                  child: HamaSectionHeader(
+                    title: 'Tasks',
+                    subtitle: 'Track responsibility, deadlines and progress',
+                    icon: Icons.task_alt_rounded,
+                  ),
+                ),
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: HamaColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: HamaColors.border)),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: [
+                    _filter('not_started', 'Not Started', Icons.radio_button_unchecked_rounded),
+                    _filter('in_progress', 'In Progress', Icons.play_circle_outline_rounded),
+                    _filter('ready_for_completion', 'Ready for Completion', Icons.fact_check_outlined),
+                    _filter('awaiting_approval', 'Awaiting Approval', Icons.verified_outlined),
+                    _filter('overdue', 'Overdue', Icons.warning_amber_rounded),
+                    _filter('completed', 'Completed', Icons.check_circle_outline_rounded),
+                    _filter('cancelled', 'Cancelled', Icons.cancel_outlined),
+                    _filter('all', 'All', Icons.grid_view_rounded),
+                  ]),
+                ),
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? const EmptyView('No tasks', icon: Icons.task_alt_outlined)
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          ref.invalidate(provider);
+                          await ref.read(provider.future);
+                        },
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (_, index) {
+                            final task = filtered[index];
+                            final urgent = task.priority == 'urgent';
+                            return Card(
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                onTap: () => context.go('/tasks/${task.id}'),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 52, height: 52,
+                                        decoration: BoxDecoration(gradient: LinearGradient(colors: [HamaColors.teal.withOpacity(.15), HamaColors.navy2.withOpacity(.08)]), borderRadius: BorderRadius.circular(15)),
+                                        child: Icon(task.effectiveStatus == 'overdue' ? Icons.warning_amber_rounded : Icons.task_alt_rounded, color: task.effectiveStatus == 'overdue' ? HamaColors.red : HamaColors.teal),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                          Row(children: [Expanded(child: Text(task.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, color: HamaColors.ink))), const SizedBox(width: 8), StatusChip(task.effectiveStatus)]),
+                                          const SizedBox(height: 6),
+                                          Text('${task.code} • ${tr('Deadline')}: ${shortDate(task.deadline)}', style: const TextStyle(fontSize: 12, color: HamaColors.muted)),
+                                          const SizedBox(height: 9),
+                                          if (!isMobile)
+                                            Wrap(spacing: 14, runSpacing: 6, children: [
+                                              _personLine('Responsible', byId[task.responsibleId]),
+                                              _personLine('Follower', byId[task.followerId]),
+                                              if (urgent) const PriorityChip('urgent'),
+                                            ])
+                                          else if (urgent)
+                                            const Padding(
+                                              padding: EdgeInsets.only(top: 4),
+                                              child: PriorityChip('urgent'),
+                                            ),
+                                        ]),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Icon(Icons.chevron_right_rounded, color: HamaColors.muted),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    ),
-                  if (!isMobile)
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 16, 16, 6),
-                      child: HamaSectionHeader(
-                        title: 'Tasks',
-                        subtitle:
-                            'Track responsibility, deadlines and progress',
-                        icon: Icons.task_alt_rounded,
-                      ),
-                    ),
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                        color: HamaColors.surface,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: HamaColors.border)),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(children: [
-                        _filter('not_started', 'Not Started',
-                            Icons.radio_button_unchecked_rounded),
-                        _filter('in_progress', 'In Progress',
-                            Icons.play_circle_outline_rounded),
-                        _filter('ready_for_completion', 'Ready for Completion',
-                            Icons.fact_check_outlined),
-                        _filter(
-                            'overdue', 'Overdue', Icons.warning_amber_rounded),
-                        _filter('completed', 'Completed',
-                            Icons.check_circle_outline_rounded),
-                        _filter(
-                            'cancelled', 'Cancelled', Icons.cancel_outlined),
-                        _filter('all', 'All', Icons.grid_view_rounded),
-                      ]),
-                    ),
-                  ),
-                  Expanded(
-                    child: filtered.isEmpty
-                        ? const EmptyView('No tasks',
-                            icon: Icons.task_alt_outlined)
-                        : RefreshIndicator(
-                            onRefresh: () async {
-                              ref.invalidate(provider);
-                              await ref.read(provider.future);
-                            },
-                            child: ListView.separated(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (_, index) {
-                                final task = filtered[index];
-                                final urgent = task.priority == 'urgent';
-                                return Card(
-                                  clipBehavior: Clip.antiAlias,
-                                  child: InkWell(
-                                    onTap: () =>
-                                        context.go('/tasks/${task.id}'),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(14),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 52,
-                                            height: 52,
-                                            decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                    colors: [
-                                                      HamaColors.teal
-                                                          .withOpacity(.15),
-                                                      HamaColors.navy2
-                                                          .withOpacity(.08)
-                                                    ]),
-                                                borderRadius:
-                                                    BorderRadius.circular(15)),
-                                            child: Icon(
-                                                task
-                                                            .effectiveStatus ==
-                                                        'overdue'
-                                                    ? Icons
-                                                        .warning_amber_rounded
-                                                    : Icons.task_alt_rounded,
-                                                color: task.effectiveStatus ==
-                                                        'overdue'
-                                                    ? HamaColors.red
-                                                    : HamaColors.teal),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(children: [
-                                                    Expanded(
-                                                        child: Text(task.title,
-                                                            maxLines: 1,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                            style: const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w900,
-                                                                color:
-                                                                    HamaColors
-                                                                        .ink))),
-                                                    const SizedBox(width: 8),
-                                                    StatusChip(
-                                                        task.effectiveStatus)
-                                                  ]),
-                                                  const SizedBox(height: 6),
-                                                  Text(
-                                                      '${task.code} • ${tr('Deadline')}: ${shortDate(task.deadline)}',
-                                                      style: const TextStyle(
-                                                          fontSize: 12,
-                                                          color: HamaColors
-                                                              .muted)),
-                                                  const SizedBox(height: 9),
-                                                  if (!isMobile)
-                                                    Wrap(
-                                                        spacing: 14,
-                                                        runSpacing: 6,
-                                                        children: [
-                                                          _personLine(
-                                                              'Responsible',
-                                                              byId[task
-                                                                  .responsibleId]),
-                                                          _personLine(
-                                                              'Follower',
-                                                              byId[task
-                                                                  .followerId]),
-                                                          if (urgent)
-                                                            const PriorityChip(
-                                                                'urgent'),
-                                                        ])
-                                                  else if (urgent)
-                                                    const Padding(
-                                                      padding: EdgeInsets.only(
-                                                          top: 4),
-                                                      child: PriorityChip(
-                                                          'urgent'),
-                                                    ),
-                                                ]),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          const Icon(
-                                              Icons.chevron_right_rounded,
-                                              color: HamaColors.muted),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                  ),
-                ],
-              );
-            },
-          ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -241,18 +168,12 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 6),
       child: ChoiceChip(
-        avatar: Icon(icon,
-            size: 17, color: selected ? HamaColors.teal : HamaColors.muted),
-        label: T(label,
-            style: TextStyle(
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
+        avatar: Icon(icon, size: 17, color: selected ? HamaColors.teal : HamaColors.muted),
+        label: T(label, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
         selected: selected,
         selectedColor: HamaColors.teal.withOpacity(.12),
         backgroundColor: Colors.white,
-        side: BorderSide(
-            color: selected
-                ? HamaColors.teal.withOpacity(.35)
-                : HamaColors.border),
+        side: BorderSide(color: selected ? HamaColors.teal.withOpacity(.35) : HamaColors.border),
         onSelected: (_) => setState(() => status = value),
       ),
     );
@@ -262,11 +183,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       UserAvatar(user: user ?? const AvatarData('—', null), radius: 13),
       const SizedBox(width: 5),
-      Text('${tr(label)}: ${user?.fullName ?? '—'}',
-          style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: HamaColors.ink)),
+      Text('${tr(label)}: ${user?.fullName ?? '—'}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: HamaColors.ink)),
     ]);
   }
 
@@ -281,7 +198,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     String? follower;
     DateTime deadline = DateTime.now().add(const Duration(days: 1));
     bool evidence = false;
-    bool confirmation = true;
+    const bool confirmation = true;
     final quantity = TextEditingController();
     final unit = TextEditingController();
 
@@ -311,10 +228,8 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                       Expanded(
                         child: TextField(
                           controller: quantity,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          decoration:
-                              InputDecoration(labelText: tr('Total quantity')),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(labelText: tr('Total quantity')),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -386,10 +301,8 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   ),
                   SwitchListTile(
                     value: confirmation,
-                    title: const T('Manager confirmation before completion'),
-                    onChanged: (value) {
-                      setDialogState(() => confirmation = value);
-                    },
+                    title: const T('Admin approval required'),
+                    onChanged: null,
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,

@@ -23,6 +23,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: 'Trash',
+      onRefresh: () async { _reload(); await _future; },
       body: FutureBuilder<List<Task>>(
         future: _future,
         builder: (context, snap) {

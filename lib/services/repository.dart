@@ -401,16 +401,19 @@ class AppRepository {
         'notify_task_status',
         params: {
           'p_task_id': id,
-          'p_status': 'completed',
+          'p_status': 'awaiting_approval',
         },
       );
     } catch (_) {}
   }
 
   Future<void> confirmTask(String id) async {
-    if (!await hasPermission('tasks.confirm_completion')) throw const AuthException('Confirm completion permission required');
+    final p = await myProfile();
+    if (p == null || !p.isGm) {
+      throw const AuthException('Only the General Manager can approve the operation');
+    }
 
-    await _db.rpc('confirm_task', params: {'p_task_id': id});
+    await _db.rpc('approve_task', params: {'p_task_id': id});
 
     try {
       await _db.rpc(

@@ -50,6 +50,7 @@ class StatusChip extends StatelessWidget {
       case 'completed': return (HamaColors.green.withOpacity(.12), HamaColors.green);
       case 'in_progress': return (HamaColors.teal.withOpacity(.12), HamaColors.teal);
       case 'ready_for_completion': return (HamaColors.orange.withOpacity(.14), HamaColors.orange);
+      case 'awaiting_approval': return (HamaColors.navy2.withOpacity(.12), HamaColors.navy2);
       case 'overdue': return (HamaColors.red.withOpacity(.12), HamaColors.red);
       case 'cancelled': return (Colors.grey.withOpacity(.12), Colors.grey.shade700);
       case 'deleted': return (HamaColors.red.withOpacity(.10), HamaColors.red);

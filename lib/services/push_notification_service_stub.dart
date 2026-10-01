@@ -14,7 +14,7 @@
 //   Future<PushNotificationStatus> enable() async => const PushNotificationStatus(
 //         supported: false,
 //         enabled: false,
-//         message: 'Browser push is available on Hama Work Web.',
+//         message: 'Browser push is available on HF Team Web.',
 //       );
 
 //   Future<bool> isEnabled() async => false;
@@ -36,7 +36,7 @@ class HamaPushNotificationService {
     return const PushNotificationStatus(
       supported: false,
       enabled: false,
-      message: 'Browser push is available on Hama Work Web.',
+      message: 'Browser push is available on HF Team Web.',
     );
   }
 

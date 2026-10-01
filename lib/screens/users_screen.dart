@@ -112,13 +112,22 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     String department = 'SITE';
 
     const departments = <String, String>{
-      'SITE': 'Site Management',
-      'PROD': 'Production',
-      'MAINT': 'Maintenance',
-      'COLD': 'Cold Store',
-      'PURCH': 'Purchasing',
-      'LOG': 'Logistics',
-      'QUALITY': 'Quality',
+      'SITE': 'إدارة الموقع',
+      'PROD': 'الإنتاج',
+      'MAINT': 'الصيانة',
+      'COLD': 'الثلاجة / التبريد',
+      'PURCH': 'المشتريات',
+      'LOG': 'اللوجستيات',
+      'QUALITY': 'الجودة',
+      'WAREHOUSE': 'المخازن',
+      'PLANNING': 'تخطيط',
+      'LEGAL': 'قانونية',
+      'FINANCE': 'مالية',
+      'SECURITY': 'أمن',
+      'LOCAL_SALES': 'مبيعات محلية',
+      'EXPORT_SALES': 'مبيعات تصدير',
+      'IT': 'IT',
+      'HR': 'HR',
     };
 
     await showDialog<void>(

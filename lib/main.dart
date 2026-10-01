@@ -39,7 +39,7 @@ Future<void> main() async {
       url: AppConfig.url.trim(),
       publishableKey: AppConfig.publishableKey.trim(),
       // Keep the authenticated session across browser refreshes/restarts.
-      // The password itself is never stored by Hama Work.
+      // The password itself is never stored by HF Team.
       authOptions: const FlutterAuthClientOptions(
         autoRefreshToken: true,
       ),
@@ -192,7 +192,7 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp> {
     }
 
     return MaterialApp.router(
-      title: 'Hama Work',
+      title: 'HF Team',
       debugShowCheckedModeBanner: false,
       locale: locale,
       supportedLocales: const [

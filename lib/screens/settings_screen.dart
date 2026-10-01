@@ -164,7 +164,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         children: [
           const HamaSectionHeader(
               title: 'Settings',
-              subtitle: 'Personalize your Hama Work experience',
+              subtitle: 'Personalize your HF Team experience',
               icon: Icons.tune_rounded),
           const SizedBox(height: 14),
           Card(
@@ -232,8 +232,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     subtitle: Text(
                       pushEnabled
                           ? tr(
-                              'Enabled — you can receive notifications even when Hama Work is closed.')
-                          : tr('Enable browser notifications for Hama Work.'),
+                              'Enabled — you can receive notifications even when HF Team is closed.')
+                          : tr('Enable browser notifications for HF Team.'),
                     ),
                     trailing: Switch(
                       value: pushEnabled,
@@ -285,7 +285,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 HamaMark(size: 44),
                 SizedBox(width: 12),
                 Expanded(
-                    child: Text('Hama Work',
+                    child: Text('HF Team',
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
