@@ -31,6 +31,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   final TextEditingController _taskChatController = TextEditingController();
   final List<PlatformFile> _taskChatFiles = <PlatformFile>[];
   bool _taskChatSending = false;
+  bool _mobileCompactHeader = false;
   final Set<String> _taskChatUploaded = <String>{};
 
   @override
@@ -52,6 +53,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   }
 
   bool _can(String key) => _permissions.contains(key);
+
+  bool _canExecutionAction(Task task, Profile? profile, String permission) =>
+      profile != null &&
+      _can(permission) &&
+      (profile.isGm || profile.isManager || task.responsibleId == profile.id);
 
   void _startRealtime() {
     if (_realtimeChannel != null) return;
@@ -98,6 +104,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   @override
   Widget build(BuildContext context) {
     _startRealtime();
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
     return AppScaffold(
       title: 'Tasks',
       showBack: true,
@@ -133,7 +140,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                 length: tabs.length,
                 child: Column(
               children: [
-                _taskHeader(task, ref.watch(usersProvider).valueOrNull ?? const <Profile>[]),
+                _taskHeader(task, ref.watch(usersProvider).valueOrNull ?? const <Profile>[], isMobile: isMobile),
                 Container(
                   margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: HamaColors.border)),
@@ -153,8 +160,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   ),
                 ),
                 Expanded(
-                  child: TabBarView(
-                    children: views,
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (isMobile && notification.metrics.axis == Axis.vertical) {
+                        final compact = notification.metrics.pixels > 18;
+                        if (compact != _mobileCompactHeader && mounted) {
+                          setState(() => _mobileCompactHeader = compact);
+                        }
+                      }
+                      return false;
+                    },
+                    child: TabBarView(children: views),
                   ),
                 ),
               ],
@@ -167,15 +183,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     );
   }
 
-  Widget _taskHeader(Task task, List<Profile> users) {
+  Widget _taskHeader(Task task, List<Profile> users, {required bool isMobile}) {
     final byId = {for (final u in users) u.id: u};
     final responsible = byId[task.responsibleId];
     final follower = byId[task.followerId];
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      padding: const EdgeInsets.all(18),
+      margin: EdgeInsets.fromLTRB(16, isMobile ? 8 : 14, 16, 8),
+      padding: EdgeInsets.all(isMobile ? 12 : 18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [HamaColors.navy, HamaColors.navy2], begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd),
         borderRadius: BorderRadius.circular(20),
@@ -190,9 +206,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 430),
+                constraints: BoxConstraints(maxWidth: isMobile ? 250 : 430),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(task.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+                  Text(task.title, style: TextStyle(fontSize: isMobile ? 18 : 22, fontWeight: FontWeight.w900, color: Colors.white), maxLines: isMobile ? 2 : null, overflow: isMobile ? TextOverflow.ellipsis : null),
                   const SizedBox(height: 5),
                   Text(task.code, style: TextStyle(color: Colors.white.withOpacity(.70), fontWeight: FontWeight.w600)),
                 ]),
@@ -201,15 +217,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               PriorityChip(task.priority),
             ],
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _headerUser('Responsible', responsible),
-              _headerUser('Follower', follower),
-            ],
-          ),
+          if (!isMobile || !_mobileCompactHeader) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _headerUser('Responsible', responsible),
+                _headerUser('Follower', follower),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -242,8 +260,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     );
   }
 
+  Widget _sectionHeader({required String title, required String subtitle, required IconData icon}) {
+    if (MediaQuery.sizeOf(context).width < 600) return const SizedBox.shrink();
+    return HamaSectionHeader(title: title, subtitle: subtitle, icon: icon);
+  }
+
   Widget _taskTab(Task task, Profile? profile) {
     final users = ref.watch(usersProvider).valueOrNull ?? const <Profile>[];
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
     final userById = {for (final u in users) u.id: u};
     final responsibleName = task.responsibleId == null
         ? '-'
@@ -256,7 +280,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const HamaSectionHeader(title: 'Task Overview', subtitle: 'Details, ownership and available actions', icon: Icons.dashboard_customize_rounded),
+          _sectionHeader(title: 'Task Overview', subtitle: 'Details, ownership and available actions', icon: Icons.dashboard_customize_rounded),
           const SizedBox(height: 12),
           _attachmentsCard(),
           const SizedBox(height: 12),
@@ -290,8 +314,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const T('Description', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
+                    if (!isMobile) ...[
+                      const T('Description', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                    ],
                     Text(task.description!),
                   ],
                 ),
@@ -305,8 +331,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const T('Task Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
+                  if (!isMobile) ...[
+                    const T('Task Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                  ],
                   _actions(task, profile),
                 ],
               ),
@@ -322,34 +350,36 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const HamaSectionHeader(title: 'Progress', subtitle: 'Track daily achievement against the target', icon: Icons.insights_rounded),
+          _sectionHeader(title: 'Progress', subtitle: 'Track daily achievement against the target', icon: Icons.insights_rounded),
           const SizedBox(height: 12),
           _progressSection(task, profile),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const T('How progress works', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  const T('The responsible person records the quantity completed each day. The task progress is calculated from the accumulated daily achievement against the total quantity.'),
-                ],
+          if (MediaQuery.sizeOf(context).width >= 600) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const T('How progress works', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    const T('The responsible person records the quantity completed each day. The task progress is calculated from the accumulated daily achievement against the total quantity.'),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 
   Widget _stagesTab(Task task, Profile? profile) {
-    return _tabScroll(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const HamaSectionHeader(title: 'Task Stages', subtitle: 'Break the task into manageable parts', icon: Icons.account_tree_rounded), const SizedBox(height: 12), _stagesSection(task, profile)]));
+    return _tabScroll(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_sectionHeader(title: 'Task Stages', subtitle: 'Break the task into manageable parts', icon: Icons.account_tree_rounded), const SizedBox(height: 12), _stagesSection(task, profile)]));
   }
 
   Widget _dailyTab(Task task) {
-    return _tabScroll(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const HamaSectionHeader(title: 'Daily Work Log', subtitle: 'A clear record of what was achieved each day', icon: Icons.calendar_month_rounded), const SizedBox(height: 12), _dailySection(task)]));
+    return _tabScroll(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_sectionHeader(title: 'Daily Work Log', subtitle: 'A clear record of what was achieved each day', icon: Icons.calendar_month_rounded), const SizedBox(height: 12), _dailySection(task)]));
   }
 
   Widget _chatTab(AsyncValue<List<TaskComment>> comments) {
@@ -360,7 +390,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const HamaSectionHeader(
+              _sectionHeader(
                 title: 'Task Chat',
                 subtitle: 'Keep task-related communication in one place',
                 icon: Icons.forum_rounded,
@@ -774,6 +804,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   }
 
   bool _canRecord(Task task, Profile? p) =>
+      task.status == 'in_progress' &&
       p != null &&
       (p.isGm ||
           p.isManager ||
@@ -1039,6 +1070,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   }
 
   Future<void> _addDailyUpdate(Task task, TaskStage? stage) async {
+    if (task.status != 'in_progress') {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Start the task before recording progress'))));
+      return;
+    }
     final qty = TextEditingController();
     final note = TextEditingController();
     DateTime date = DateTime.now();
@@ -1231,9 +1266,12 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       spacing: 8,
       runSpacing: 8,
       children: [
-        if (task.status == 'not_started' && _can('tasks.start')) OutlinedButton.icon(onPressed: () => _setStatus('in_progress'), icon: const Icon(Icons.play_arrow_rounded), label: const T('Start')),
-        if (task.status == 'in_progress' && _can('tasks.request_completion')) OutlinedButton.icon(onPressed: () => _requestCompletion(task), icon: const Icon(Icons.done_all_rounded), label: const T('Request completion')),
-        if (task.status == 'ready_for_completion' && _can('tasks.confirm_completion')) OutlinedButton.icon(onPressed: () => _confirm(task), icon: const Icon(Icons.verified_rounded), label: const T('Confirm completion')),
+        if (task.status == 'not_started' && _canExecutionAction(task, profile, 'tasks.start')) OutlinedButton.icon(onPressed: () => _setStatus('in_progress'), icon: const Icon(Icons.play_arrow_rounded), label: const T('Start')),
+        if (task.status == 'in_progress' && _canExecutionAction(task, profile, 'tasks.request_completion')) OutlinedButton.icon(onPressed: () => _requestCompletion(task), icon: const Icon(Icons.done_all_rounded), label: const T('Request completion')),
+        if (task.status == 'ready_for_completion' && task.followerId != null && profile?.id == task.followerId)
+          FilledButton.icon(onPressed: () => _reviewCompletion(task), icon: const Icon(Icons.fact_check_rounded), label: const T('Follow-up completed')),
+        if (task.status == 'ready_for_completion' && task.followerId == null && _can('tasks.confirm_completion'))
+          OutlinedButton.icon(onPressed: () => _confirm(task), icon: const Icon(Icons.verified_rounded), label: const T('Confirm completion')),
         if (_can('tasks.cancel') && task.status != 'cancelled' && task.status != 'completed') OutlinedButton.icon(onPressed: _cancel, icon: const Icon(Icons.cancel_outlined), label: const T('Cancel')),
         if (_can('tasks.reopen') && task.status == 'completed') OutlinedButton.icon(onPressed: _reopen, icon: const Icon(Icons.replay_rounded), label: const T('Reopen')),
         if (_can('tasks.evaluate')) FilledButton.icon(onPressed: _evaluate, icon: const Icon(Icons.star_rate_rounded), label: const T('Evaluate')),
@@ -1293,6 +1331,18 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   Future<void> _setStatus(String status) async {
     try {
       await ref.read(repoProvider).updateTaskStatus(widget.taskId, status);
+      await _refresh();
+      ref.invalidate(tasksProvider('my'));
+      ref.invalidate(tasksProvider('team'));
+      ref.invalidate(dashboardProvider);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _reviewCompletion(Task task) async {
+    try {
+      await ref.read(repoProvider).reviewTaskCompletion(task.id);
       await _refresh();
       ref.invalidate(tasksProvider('my'));
       ref.invalidate(tasksProvider('team'));

@@ -394,6 +394,19 @@ class AppRepository {
     } catch (_) {}
   }
 
+  Future<void> reviewTaskCompletion(String id) async {
+    await _db.rpc('review_task_completion', params: {'p_task_id': id});
+    try {
+      await _db.rpc(
+        'notify_task_status',
+        params: {
+          'p_task_id': id,
+          'p_status': 'completed',
+        },
+      );
+    } catch (_) {}
+  }
+
   Future<void> confirmTask(String id) async {
     if (!await hasPermission('tasks.confirm_completion')) throw const AuthException('Confirm completion permission required');
 
