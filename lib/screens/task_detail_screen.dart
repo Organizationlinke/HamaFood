@@ -45,9 +45,24 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   Future<void> _loadPermissions() async {
     try {
       final p = await ref.read(repoProvider).myProfile();
-      final keys = ['tasks.start','tasks.request_completion','tasks.manage_status','tasks.confirm_completion','tasks.reopen','tasks.evaluate','tasks.cancel','attachments.upload'];
+      final keys = [
+        'tasks.start',
+        'tasks.request_completion',
+        'tasks.manage_status',
+        'tasks.confirm_completion',
+        'tasks.reopen',
+        'tasks.evaluate',
+        'tasks.cancel',
+        'attachments.upload'
+      ];
       final granted = <String>{};
-      if (p?.isGm == true) { granted.addAll(keys); } else { for (final k in keys) { if (await ref.read(repoProvider).hasPermission(k)) granted.add(k); } }
+      if (p?.isGm == true) {
+        granted.addAll(keys);
+      } else {
+        for (final k in keys) {
+          if (await ref.read(repoProvider).hasPermission(k)) granted.add(k);
+        }
+      }
       if (mounted) setState(() => _permissions = granted);
     } catch (_) {}
   }
@@ -55,9 +70,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   bool _can(String key) => _permissions.contains(key);
 
   bool _canExecutionAction(Task task, Profile? profile, String permission) =>
-      profile != null &&
-      _can(permission) &&
-      task.responsibleId == profile.id;
+      profile != null && _can(permission) && task.responsibleId == profile.id;
 
   void _startRealtime() {
     if (_realtimeChannel != null) return;
@@ -100,7 +113,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     await _taskFuture;
   }
 
-  String _fmt(double n) => n % 1 == 0 ? n.toStringAsFixed(0) : n.toStringAsFixed(2);
+  String _fmt(double n) =>
+      n % 1 == 0 ? n.toStringAsFixed(0) : n.toStringAsFixed(2);
 
   @override
   Widget build(BuildContext context) {
@@ -122,63 +136,102 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
           final task = snapshot.data!;
           final profile = ref.watch(profileProvider).valueOrNull;
           final comments = ref.watch(taskCommentsProvider(widget.taskId));
-          final unreadChatCount = ref.watch(taskUnreadCommentsProvider(widget.taskId)).maybeWhen(data: (n) => n, orElse: () => 0);
+          final unreadChatCount = ref
+              .watch(taskUnreadCommentsProvider(widget.taskId))
+              .maybeWhen(data: (n) => n, orElse: () => 0);
 
           return FutureBuilder<List<TaskStage>>(
             future: _stagesFuture,
             builder: (context, stageSnap) {
               if (!stageSnap.hasData) return const LoadingView();
               final stages = stageSnap.data!;
-              final isAdmin = ref.watch(profileProvider).valueOrNull?.isGm == true;
+              final isAdmin =
+                  ref.watch(profileProvider).valueOrNull?.isGm == true;
               final showProgress = isAdmin || task.totalQuantity != null;
               final showStages = isAdmin || stages.isNotEmpty;
               final tabs = <Tab>[const Tab(text: 'Task')];
               final views = <Widget>[_taskTab(task, profile)];
-              if (showProgress) { tabs.add(Tab(text: tr('Progress'))); views.add(_progressTab(task, profile)); }
-              if (showStages) { tabs.add(Tab(text: tr('Stages'))); views.add(_stagesTab(task, profile)); }
-              tabs.add(Tab(text: tr('Daily Work Log'))); views.add(_dailyTab(task));
-              tabs.add(Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Text(tr('Chat')), if (unreadChatCount > 0) ...[const SizedBox(width: 6), Container(width: 22, height: 22, alignment: Alignment.center, decoration: const BoxDecoration(color: HamaColors.red, shape: BoxShape.circle), child: Text('$unreadChatCount', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)))]]))); views.add(_chatTab(comments, task));
+              if (showProgress) {
+                tabs.add(Tab(text: tr('Progress')));
+                views.add(_progressTab(task, profile));
+              }
+              if (showStages) {
+                tabs.add(Tab(text: tr('Stages')));
+                views.add(_stagesTab(task, profile));
+              }
+              tabs.add(Tab(text: tr('Daily Work Log')));
+              views.add(_dailyTab(task));
+              tabs.add(Tab(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(tr('Chat')),
+                if (unreadChatCount > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                      width: 22,
+                      height: 22,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                          color: HamaColors.red, shape: BoxShape.circle),
+                      child: Text('$unreadChatCount',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900)))
+                ]
+              ])));
+              views.add(_chatTab(comments, task));
 
               return DefaultTabController(
                 length: tabs.length,
                 child: Column(
-              children: [
-                _taskHeader(task, ref.watch(usersProvider).valueOrNull ?? const <Profile>[], isMobile: isMobile),
-                Container(
-                  margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: HamaColors.border)),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: TabBar(
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      dividerColor: Colors.transparent,
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      indicator: BoxDecoration(color: HamaColors.teal.withOpacity(.10), borderRadius: BorderRadius.circular(12)),
-                      labelColor: HamaColors.teal,
-                      unselectedLabelColor: HamaColors.muted,
-                      labelStyle: const TextStyle(fontWeight: FontWeight.w800),
-                      tabs: tabs,
+                  children: [
+                    _taskHeader(
+                        task,
+                        ref.watch(usersProvider).valueOrNull ??
+                            const <Profile>[],
+                        isMobile: isMobile),
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: HamaColors.border)),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: TabBar(
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          dividerColor: Colors.transparent,
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          indicator: BoxDecoration(
+                              color: HamaColors.teal.withOpacity(.10),
+                              borderRadius: BorderRadius.circular(12)),
+                          labelColor: HamaColors.teal,
+                          unselectedLabelColor: HamaColors.muted,
+                          labelStyle:
+                              const TextStyle(fontWeight: FontWeight.w800),
+                          tabs: tabs,
+                        ),
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (isMobile &&
+                              notification.metrics.axis == Axis.vertical) {
+                            final compact = notification.metrics.pixels > 18;
+                            if (compact != _mobileCompactHeader && mounted) {
+                              setState(() => _mobileCompactHeader = compact);
+                            }
+                          }
+                          return false;
+                        },
+                        child: TabBarView(children: views),
+                      ),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (notification) {
-                      if (isMobile && notification.metrics.axis == Axis.vertical) {
-                        final compact = notification.metrics.pixels > 18;
-                        if (compact != _mobileCompactHeader && mounted) {
-                          setState(() => _mobileCompactHeader = compact);
-                        }
-                      }
-                      return false;
-                    },
-                    child: TabBarView(children: views),
-                  ),
-                ),
-              ],
-            ),
-            );
+              );
             },
           );
         },
@@ -196,9 +249,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       margin: EdgeInsets.fromLTRB(16, isMobile ? 8 : 14, 16, 8),
       padding: EdgeInsets.all(isMobile ? 12 : 18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [HamaColors.navy, HamaColors.navy2], begin: AlignmentDirectional.topStart, end: AlignmentDirectional.bottomEnd),
+        gradient: const LinearGradient(
+            colors: [HamaColors.navy, HamaColors.navy2],
+            begin: AlignmentDirectional.topStart,
+            end: AlignmentDirectional.bottomEnd),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: HamaColors.navy.withOpacity(.16), blurRadius: 18, offset: const Offset(0, 8))],
+        boxShadow: [
+          BoxShadow(
+              color: HamaColors.navy.withOpacity(.16),
+              blurRadius: 18,
+              offset: const Offset(0, 8))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,11 +271,22 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             children: [
               ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: isMobile ? 250 : 430),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(task.title, style: TextStyle(fontSize: isMobile ? 18 : 22, fontWeight: FontWeight.w900, color: Colors.white), maxLines: isMobile ? 2 : null, overflow: isMobile ? TextOverflow.ellipsis : null),
-                  const SizedBox(height: 5),
-                  Text(task.code, style: TextStyle(color: Colors.white.withOpacity(.70), fontWeight: FontWeight.w600)),
-                ]),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(task.title,
+                          style: TextStyle(
+                              fontSize: isMobile ? 18 : 22,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white),
+                          maxLines: isMobile ? 2 : null,
+                          overflow: isMobile ? TextOverflow.ellipsis : null),
+                      const SizedBox(height: 5),
+                      Text(task.code,
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(.70),
+                              fontWeight: FontWeight.w600)),
+                    ]),
               ),
               StatusChip(task.effectiveStatus),
               PriorityChip(task.priority),
@@ -240,13 +312,25 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     return Container(
       constraints: const BoxConstraints(minWidth: 190, maxWidth: 300),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(.09), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withOpacity(.12))),
+      decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.09),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(.12))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         UserAvatar(user: user ?? AvatarData('—', null), radius: 17),
         const SizedBox(width: 9),
-        Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(tr(label), style: TextStyle(color: Colors.white.withOpacity(.65), fontSize: 11, fontWeight: FontWeight.w700)),
-          Text(user?.fullName ?? '—', overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+        Flexible(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(tr(label),
+              style: TextStyle(
+                  color: Colors.white.withOpacity(.65),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700)),
+          Text(user?.fullName ?? '—',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800)),
         ])),
       ]),
     );
@@ -263,7 +347,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     );
   }
 
-  Widget _sectionHeader({required String title, required String subtitle, required IconData icon}) {
+  Widget _sectionHeader(
+      {required String title,
+      required String subtitle,
+      required IconData icon}) {
     if (MediaQuery.sizeOf(context).width < 600) return const SizedBox.shrink();
     return HamaSectionHeader(title: title, subtitle: subtitle, icon: icon);
   }
@@ -283,8 +370,52 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader(title: 'Task Overview', subtitle: 'Details, ownership and available actions', icon: Icons.dashboard_customize_rounded),
+           
+          
+          _sectionHeader(
+              title: 'Task Overview',
+              subtitle: 'Details, ownership and available actions',
+              icon: Icons.dashboard_customize_rounded),
           const SizedBox(height: 12),
+            if (task.description?.isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!isMobile) ...[
+                      const T('Description',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                    ],
+                    Text(task.description!),
+                  ],
+                ),
+              ),
+            ),
+          ],
+             const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isMobile) ...[
+                    const T('Task Actions',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                  ],
+                  _actions(task, profile),
+                ],
+              ),
+            ),
+          ),
+       
           _attachmentsCard(task),
           const SizedBox(height: 12),
           Card(
@@ -294,16 +425,24 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                 spacing: 24,
                 runSpacing: 14,
                 children: [
-                  _kv('Status', tr(task.effectiveStatus == 'overdue' ? 'Overdue' : _statusLabel(task.status))),
-                  _kv('Deadline', task.deadline == null ? '-' : shortDate(task.deadline!)),
-                  _kv('Evidence required', task.evidenceRequired ? tr('Yes') : tr('No')),
-                  _kv('Admin approval', task.managerConfirmed ? tr('Yes') : tr('No')),
-                  _userKv('Responsible', userById[task.responsibleId]),
-                  _userKv('Follower', userById[task.followerId]),
-                  _userKv('Created by', userById[task.createdBy]),
+                  _kv(
+                      'Status',
+                      tr(task.effectiveStatus == 'overdue'
+                          ? 'Overdue'
+                          : _statusLabel(task.status))),
+                  _kv('Deadline',
+                      task.deadline == null ? '-' : shortDate(task.deadline!)),
+                  _kv('Evidence required',
+                      task.evidenceRequired ? tr('Yes') : tr('No')),
+                  _kv('Admin approval',
+                      task.managerConfirmed ? tr('Yes') : tr('No')),
+                  // _userKv('Responsible', userById[task.responsibleId]),
+                  // _userKv('Follower', userById[task.followerId]),
+                  // _userKv('Created by', userById[task.createdBy]),
                   _kv('Created at', dateTimeText(task.createdAt)),
                   if (task.totalQuantity != null)
-                    _kv('Total quantity', '${_fmt(task.totalQuantity!)} ${task.quantityUnit ?? ''}'),
+                    _kv('Total quantity',
+                        '${_fmt(task.totalQuantity!)} ${task.quantityUnit ?? ''}'),
                   if (task.score != null) _kv('Score 1-10', '${task.score}'),
                 ],
               ),
@@ -315,48 +454,61 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               color: HamaColors.teal.withOpacity(.06),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [const Icon(Icons.fact_check_rounded, color: HamaColors.teal), const SizedBox(width: 8), const Expanded(child: T('Completion proof note', style: TextStyle(fontWeight: FontWeight.w900)))]),
-                  const SizedBox(height: 8),
-                  Text(task.completionProofNote!),
-                ]),
-              ),
-            ),
-          ],
-          if (task.description?.isNotEmpty == true) ...[
-            const SizedBox(height: 8),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!isMobile) ...[
-                      const T('Description', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.fact_check_rounded,
+                            color: HamaColors.teal),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                            child: T('Completion proof note',
+                                style: TextStyle(fontWeight: FontWeight.w900)))
+                      ]),
                       const SizedBox(height: 8),
-                    ],
-                    Text(task.description!),
-                  ],
-                ),
+                      Text(task.completionProofNote!),
+                    ]),
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!isMobile) ...[
-                    const T('Task Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                  ],
-                  _actions(task, profile),
-                ],
-              ),
-            ),
-          ),
+          // if (task.description?.isNotEmpty == true) ...[
+          //   const SizedBox(height: 8),
+          //   Card(
+          //     child: Padding(
+          //       padding: const EdgeInsets.all(16),
+          //       child: Column(
+          //         crossAxisAlignment: CrossAxisAlignment.start,
+          //         children: [
+          //           if (!isMobile) ...[
+          //             const T('Description',
+          //                 style: TextStyle(
+          //                     fontSize: 18, fontWeight: FontWeight.bold)),
+          //             const SizedBox(height: 8),
+          //           ],
+          //           Text(task.description!),
+          //         ],
+          //       ),
+          //     ),
+          //   ),
+          // ],
+          // const SizedBox(height: 12),
+          // Card(
+          //   child: Padding(
+          //     padding: const EdgeInsets.all(16),
+          //     child: Column(
+          //       crossAxisAlignment: CrossAxisAlignment.start,
+          //       children: [
+          //         if (!isMobile) ...[
+          //           const T('Task Actions',
+          //               style: TextStyle(
+          //                   fontSize: 18, fontWeight: FontWeight.bold)),
+          //           const SizedBox(height: 12),
+          //         ],
+          //         _actions(task, profile),
+          //       ],
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );
@@ -367,7 +519,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader(title: 'Progress', subtitle: 'Track daily achievement against the target', icon: Icons.insights_rounded),
+          _sectionHeader(
+              title: 'Progress',
+              subtitle: 'Track daily achievement against the target',
+              icon: Icons.insights_rounded),
           const SizedBox(height: 12),
           _progressSection(task, profile),
           if (MediaQuery.sizeOf(context).width >= 600) ...[
@@ -378,9 +533,12 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const T('How progress works', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                    const T('How progress works',
+                        style: TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    const T('The responsible person records the quantity completed each day. The task progress is calculated from the accumulated daily achievement against the total quantity.'),
+                    const T(
+                        'The responsible person records the quantity completed each day. The task progress is calculated from the accumulated daily achievement against the total quantity.'),
                   ],
                 ),
               ),
@@ -392,11 +550,27 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   }
 
   Widget _stagesTab(Task task, Profile? profile) {
-    return _tabScroll(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_sectionHeader(title: 'Task Stages', subtitle: 'Break the task into manageable parts', icon: Icons.account_tree_rounded), const SizedBox(height: 12), _stagesSection(task, profile)]));
+    return _tabScroll(
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(
+          title: 'Task Stages',
+          subtitle: 'Break the task into manageable parts',
+          icon: Icons.account_tree_rounded),
+      const SizedBox(height: 12),
+      _stagesSection(task, profile)
+    ]));
   }
 
   Widget _dailyTab(Task task) {
-    return _tabScroll(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_sectionHeader(title: 'Daily Work Log', subtitle: 'A clear record of what was achieved each day', icon: Icons.calendar_month_rounded), const SizedBox(height: 12), _dailySection(task)]));
+    return _tabScroll(
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(
+          title: 'Daily Work Log',
+          subtitle: 'A clear record of what was achieved each day',
+          icon: Icons.calendar_month_rounded),
+      const SizedBox(height: 12),
+      _dailySection(task)
+    ]));
   }
 
   Widget _chatTab(AsyncValue<List<TaskComment>> comments, Task task) {
@@ -417,20 +591,24 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                 loading: () => const LinearProgressIndicator(),
                 error: (e, _) => Text('$e'),
                 data: (items) {
-                  if (items.isEmpty) return const _EmptyInline(icon: Icons.chat_bubble_outline, text: 'No messages');
+                  if (items.isEmpty)
+                    return const _EmptyInline(
+                        icon: Icons.chat_bubble_outline, text: 'No messages');
                   final me = ref.read(profileProvider).valueOrNull?.id;
                   return Column(
-                    children: items.map((comment) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: HamaChatBubble(
-                        isMine: comment.createdBy == me,
-                        name: comment.creatorName,
-                        avatarUrl: comment.creatorAvatarUrl,
-                        content: comment.content,
-                        createdAt: comment.createdAt,
-                        attachments: _commentAttachments(comment),
-                      ),
-                    )).toList(),
+                    children: items
+                        .map((comment) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: HamaChatBubble(
+                                isMine: comment.createdBy == me,
+                                name: comment.creatorName,
+                                avatarUrl: comment.creatorAvatarUrl,
+                                content: comment.content,
+                                createdAt: comment.createdAt,
+                                attachments: _commentAttachments(comment),
+                              ),
+                            ))
+                        .toList(),
                   );
                 },
               ),
@@ -447,9 +625,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.lock_outline_rounded, size: 18, color: HamaColors.muted),
+                  const Icon(Icons.lock_outline_rounded,
+                      size: 18, color: HamaColors.muted),
                   const SizedBox(width: 8),
-                  Text(tr('Completed tasks are read-only'), style: const TextStyle(fontWeight: FontWeight.w700, color: HamaColors.muted)),
+                  Text(tr('Completed tasks are read-only'),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: HamaColors.muted)),
                 ],
               ),
             ),
@@ -479,7 +661,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   if (_can('attachments.upload'))
                     IconButton(
                       tooltip: tr('Add attachment'),
-                      onPressed: !enabled || _taskChatSending ? null : _pickTaskChatFiles,
+                      onPressed: !enabled || _taskChatSending
+                          ? null
+                          : _pickTaskChatFiles,
                       icon: const Icon(Icons.attach_file_rounded),
                     ),
                   Expanded(
@@ -497,16 +681,21 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 11),
                       ),
                     ),
                   ),
                   const SizedBox(width: 6),
                   IconButton.filled(
                     tooltip: tr('Send'),
-                    onPressed: !enabled || _taskChatSending ? null : _sendTaskChat,
+                    onPressed:
+                        !enabled || _taskChatSending ? null : _sendTaskChat,
                     icon: _taskChatSending
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.send_rounded),
                   ),
                 ],
@@ -517,7 +706,6 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ),
     );
   }
-
 
   Widget _taskChatFilesPreview() {
     return Container(
@@ -541,14 +729,30 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             contentPadding: const EdgeInsets.symmetric(horizontal: 4),
             leading: CircleAvatar(
               radius: 17,
-              child: Icon(uploaded ? Icons.check_rounded : Icons.insert_drive_file_outlined, size: 18),
+              child: Icon(
+                  uploaded
+                      ? Icons.check_rounded
+                      : Icons.insert_drive_file_outlined,
+                  size: 18),
             ),
-            title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text(uploaded ? tr('Uploaded') : (_taskChatSending ? tr('Uploading...') : '${_taskFileSize(file.size)} • ${tr('Ready to send')}')),
+            title: Text(file.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(uploaded
+                ? tr('Uploaded')
+                : (_taskChatSending
+                    ? tr('Uploading...')
+                    : '${_taskFileSize(file.size)} • ${tr('Ready to send')}')),
             trailing: _taskChatSending && !uploaded
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
                 : IconButton(
-                    onPressed: _taskChatSending ? null : () => setState(() => _taskChatFiles.removeAt(index)),
+                    onPressed: _taskChatSending
+                        ? null
+                        : () => setState(() => _taskChatFiles.removeAt(index)),
                     icon: const Icon(Icons.close_rounded, size: 19),
                   ),
           );
@@ -568,7 +772,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       withData: true,
       allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp'],
+      allowedExtensions: [
+        'doc',
+        'docx',
+        'xls',
+        'xlsx',
+        'pdf',
+        'jpg',
+        'jpeg',
+        'png',
+        'webp'
+      ],
     );
     if (result != null && mounted) {
       setState(() {
@@ -581,22 +795,25 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   Future<void> _sendTaskChat() async {
     final task = await ref.read(repoProvider).taskById(widget.taskId);
     if (_taskIsClosed(task)) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Completed tasks are read-only'))));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(tr('Completed tasks are read-only'))));
       return;
     }
     final text = _taskChatController.text.trim();
     if (text.isEmpty && _taskChatFiles.isEmpty) return;
     setState(() => _taskChatSending = true);
     try {
-      final comment = await ref.read(repoProvider).addTaskComment(widget.taskId, text);
+      final comment =
+          await ref.read(repoProvider).addTaskComment(widget.taskId, text);
       for (final file in List<PlatformFile>.from(_taskChatFiles)) {
         if (file.bytes != null) {
           await ref.read(repoProvider).uploadAttachment(
-            taskCommentId: comment.id,
-            fileName: file.name,
-            bytes: file.bytes!,
-            mimeType: _mimeFor(file.extension ?? ''),
-          );
+                taskCommentId: comment.id,
+                fileName: file.name,
+                bytes: file.bytes!,
+                mimeType: _mimeFor(file.extension ?? ''),
+              );
           if (mounted) setState(() => _taskChatUploaded.add(file.name));
         }
       }
@@ -606,7 +823,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       _taskChatUploaded.clear();
       ref.invalidate(taskCommentsProvider(widget.taskId));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
     } finally {
       if (mounted) setState(() => _taskChatSending = false);
     }
@@ -629,12 +848,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   children: [
                     const HamaSectionHeader(
                       title: 'Follower Notes',
-                      subtitle: 'Follow-up notes are separate from the task chat',
+                      subtitle:
+                          'Follow-up notes are separate from the task chat',
                       icon: Icons.visibility_outlined,
                     ),
                     const SizedBox(height: 12),
                     if (items.isEmpty)
-                      const _EmptyInline(icon: Icons.note_alt_outlined, text: 'No follower notes yet.')
+                      const _EmptyInline(
+                          icon: Icons.note_alt_outlined,
+                          text: 'No follower notes yet.')
                     else
                       ...items.map((n) => _followerNoteCard(n, profile)),
                   ],
@@ -658,13 +880,18 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            UserAvatar(user: AvatarData(note.creatorName, note.creatorAvatarUrl), radius: 19),
+            UserAvatar(
+                user: AvatarData(note.creatorName, note.creatorAvatarUrl),
+                radius: 19),
             const SizedBox(width: 10),
-            Expanded(child: Column(
+            Expanded(
+                child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Expanded(child: Text(note.creatorName, style: const TextStyle(fontWeight: FontWeight.w900))),
+                  Expanded(
+                      child: Text(note.creatorName,
+                          style: const TextStyle(fontWeight: FontWeight.w900))),
                   if (canManage) ...[
                     IconButton(
                       visualDensity: VisualDensity.compact,
@@ -678,7 +905,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                     ),
                   ],
                 ]),
-                Text(dateTimeText(note.createdAt), style: const TextStyle(fontSize: 11, color: HamaColors.muted)),
+                Text(dateTimeText(note.createdAt),
+                    style:
+                        const TextStyle(fontSize: 11, color: HamaColors.muted)),
                 const SizedBox(height: 6),
                 Text(note.note),
               ],
@@ -699,7 +928,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Row(children: [
-            Expanded(child: TextField(
+            Expanded(
+                child: TextField(
               controller: controller,
               minLines: 1,
               maxLines: 4,
@@ -707,7 +937,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                 hintText: tr('Write a follower note...'),
                 filled: true,
                 fillColor: HamaColors.surface,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide.none),
               ),
             )),
             const SizedBox(width: 6),
@@ -715,11 +947,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               onPressed: () async {
                 if (controller.text.trim().isEmpty) return;
                 try {
-                  await ref.read(repoProvider).addTaskFollowerNote(task.id, controller.text);
+                  await ref
+                      .read(repoProvider)
+                      .addTaskFollowerNote(task.id, controller.text);
                   controller.clear();
                   ref.invalidate(taskFollowerNotesProvider(task.id));
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                  if (mounted)
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('$e')));
                 }
               },
               icon: const Icon(Icons.send_rounded),
@@ -738,11 +974,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         title: const T('Edit follower note'),
         content: TextField(controller: controller, maxLines: 6),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const T('Cancel')),
           FilledButton(
             onPressed: () async {
               if (controller.text.trim().isEmpty) return;
-              await ref.read(repoProvider).updateTaskFollowerNote(note.id, controller.text);
+              await ref
+                  .read(repoProvider)
+                  .updateTaskFollowerNote(note.id, controller.text);
               if (dialogContext.mounted) Navigator.pop(dialogContext);
               ref.invalidate(taskFollowerNotesProvider(widget.taskId));
             },
@@ -768,14 +1008,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         return Wrap(
           spacing: 6,
           runSpacing: 6,
-          children: items.map((a) => ActionChip(
-            avatar: const Icon(Icons.attach_file_rounded, size: 15),
-            label: Text(a.fileName, overflow: TextOverflow.ellipsis),
-            onPressed: () async {
-              final url = await ref.read(repoProvider).attachmentUrl(a);
-              await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank');
-            },
-          )).toList(),
+          children: items
+              .map((a) => ActionChip(
+                    avatar: const Icon(Icons.attach_file_rounded, size: 15),
+                    label: Text(a.fileName, overflow: TextOverflow.ellipsis),
+                    onPressed: () async {
+                      final url = await ref.read(repoProvider).attachmentUrl(a);
+                      await launchUrl(Uri.parse(url),
+                          webOnlyWindowName: '_blank');
+                    },
+                  ))
+              .toList(),
         );
       },
     );
@@ -848,7 +1091,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   bool _canRecord(Task task, Profile? p) =>
       task.status == 'in_progress' &&
       p != null &&
-      (p.isGm || p.isManager || task.responsibleId == p.id || task.followerId == p.id);
+      (p.isGm ||
+          p.isManager ||
+          task.responsibleId == p.id ||
+          task.followerId == p.id);
 
   bool _canWriteProgress(Task task, Profile? p) =>
       task.status == 'in_progress' &&
@@ -858,7 +1104,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   bool _canWriteDailyLog(Task task, Profile? p) =>
       task.status == 'in_progress' &&
       p != null &&
-      (p.isGm || p.isManager || task.responsibleId == p.id || task.followerId == p.id);
+      (p.isGm ||
+          p.isManager ||
+          task.responsibleId == p.id ||
+          task.followerId == p.id);
 
   bool _isFollower(Task task, Profile? p) =>
       p != null && task.followerId == p.id && !p.isGm && !p.isManager;
@@ -871,49 +1120,92 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       builder: (context, snap) {
         if (!snap.hasData) return const _SectionLoading();
         final updates = snap.data!;
-        final done = updates.fold<double>(0, (sum, u) => sum + (u.quantityDone ?? 0));
+        final done =
+            updates.fold<double>(0, (sum, u) => sum + (u.quantityDone ?? 0));
         final total = task.totalQuantity;
-        final ratio = total != null && total > 0 ? (done / total).clamp(0.0, 1.0) : null;
+        final ratio =
+            total != null && total > 0 ? (done / total).clamp(0.0, 1.0) : null;
         return _proCard(
           icon: Icons.insights_rounded,
           title: 'Progress & Daily Achievement',
-          trailing: _canWriteProgress(task, profile) ? IconButton(onPressed: () => _addDailyUpdate(task, null), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily achievement')) : null,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          trailing: _canWriteProgress(task, profile)
+              ? IconButton(
+                  onPressed: () => _addDailyUpdate(task, null),
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  tooltip: tr('Add daily achievement'))
+              : null,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (total != null && total > 0) ...[
               Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Expanded(child: Text('${_fmt(done)} ${task.quantityUnit ?? ''}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: HamaColors.navy))),
-                Text('${_fmt(total)} ${task.quantityUnit ?? ''}', style: const TextStyle(color: HamaColors.muted, fontWeight: FontWeight.w700)),
+                Expanded(
+                    child: Text('${_fmt(done)} ${task.quantityUnit ?? ''}',
+                        style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: HamaColors.navy))),
+                Text('${_fmt(total)} ${task.quantityUnit ?? ''}',
+                    style: const TextStyle(
+                        color: HamaColors.muted, fontWeight: FontWeight.w700)),
               ]),
               const SizedBox(height: 10),
-              ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: ratio, minHeight: 10)),
+              ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(value: ratio, minHeight: 10)),
               const SizedBox(height: 7),
-              Text('${((ratio ?? 0) * 100).toStringAsFixed(1)}% ${tr('completed')}', style: const TextStyle(fontWeight: FontWeight.w800, color: HamaColors.teal)),
-            ] else const _EmptyInline(icon: Icons.track_changes_outlined, text: 'No total quantity was defined for this task.'),
+              Text(
+                  '${((ratio ?? 0) * 100).toStringAsFixed(1)}% ${tr('completed')}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, color: HamaColors.teal)),
+            ] else
+              const _EmptyInline(
+                  icon: Icons.track_changes_outlined,
+                  text: 'No total quantity was defined for this task.'),
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 8),
-            Text(tr('Recent daily achievements'), style: const TextStyle(fontWeight: FontWeight.w900)),
+            Text(tr('Recent daily achievements'),
+                style: const TextStyle(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
             if (updates.isEmpty)
-              const _EmptyInline(icon: Icons.event_note_outlined, text: 'No daily achievement recorded yet.')
+              const _EmptyInline(
+                  icon: Icons.event_note_outlined,
+                  text: 'No daily achievement recorded yet.')
             else
               ...updates.take(8).map((u) => Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(color: HamaColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: HamaColors.border)),
-                child: Row(children: [
-                  UserAvatar(user: AvatarData(u.creatorName, u.creatorAvatarUrl), radius: 19),
-                  const SizedBox(width: 9),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(u.creatorName, style: const TextStyle(fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 3),
-                    Text('${shortDate(u.workDate)} • ${u.quantityDone == null ? tr('No quantity') : '${_fmt(u.quantityDone!)} ${task.quantityUnit ?? ''}'}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                    if (u.workNote?.isNotEmpty == true) Text(u.workNote!, maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 3),
-                    Text(dateTimeText(u.createdAt), style: const TextStyle(fontSize: 11, color: HamaColors.muted)),
-                  ])),
-                ]),
-              )),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                        color: HamaColors.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: HamaColors.border)),
+                    child: Row(children: [
+                      UserAvatar(
+                          user: AvatarData(u.creatorName, u.creatorAvatarUrl),
+                          radius: 19),
+                      const SizedBox(width: 9),
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text(u.creatorName,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w900)),
+                            const SizedBox(height: 3),
+                            Text(
+                                '${shortDate(u.workDate)} • ${u.quantityDone == null ? tr('No quantity') : '${_fmt(u.quantityDone!)} ${task.quantityUnit ?? ''}'}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                            if (u.workNote?.isNotEmpty == true)
+                              Text(u.workNote!,
+                                  maxLines: 2, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 3),
+                            Text(dateTimeText(u.createdAt),
+                                style: const TextStyle(
+                                    fontSize: 11, color: HamaColors.muted)),
+                          ])),
+                    ]),
+                  )),
           ]),
         );
       },
@@ -930,42 +1222,101 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         return _proCard(
           icon: Icons.account_tree_rounded,
           title: 'Task Stages',
-          trailing: canManage && !_taskIsClosed(task) ? IconButton(onPressed: () => _addStage(task, stages.length + 1), icon: const Icon(Icons.add_rounded), tooltip: tr('Add stage')) : null,
+          trailing: canManage && !_taskIsClosed(task)
+              ? IconButton(
+                  onPressed: () => _addStage(task, stages.length + 1),
+                  icon: const Icon(Icons.add_rounded),
+                  tooltip: tr('Add stage'))
+              : null,
           child: stages.isEmpty
-              ? const _EmptyInline(icon: Icons.account_tree_outlined, text: 'No stages defined.')
-              : Column(children: stages.asMap().entries.map((entry) {
+              ? const _EmptyInline(
+                  icon: Icons.account_tree_outlined, text: 'No stages defined.')
+              : Column(
+                  children: stages.asMap().entries.map((entry) {
                   final stage = entry.value;
                   return FutureBuilder<List<TaskDailyUpdate>>(
                     future: ref.read(repoProvider).taskDailyUpdates(task.id),
                     builder: (context, uSnap) {
                       final updates = uSnap.data ?? const <TaskDailyUpdate>[];
-                      final done = updates.where((u) => u.stageId == stage.id).fold<double>(0, (sum, u) => sum + (u.quantityDone ?? 0));
+                      final done = updates
+                          .where((u) => u.stageId == stage.id)
+                          .fold<double>(
+                              0, (sum, u) => sum + (u.quantityDone ?? 0));
                       final target = stage.targetQuantity;
-                      final ratio = target != null && target > 0 ? (done / target).clamp(0.0, 1.0) : null;
+                      final ratio = target != null && target > 0
+                          ? (done / target).clamp(0.0, 1.0)
+                          : null;
                       return Container(
-                        margin: EdgeInsets.only(bottom: entry.key == stages.length - 1 ? 0 : 10),
+                        margin: EdgeInsets.only(
+                            bottom: entry.key == stages.length - 1 ? 0 : 10),
                         padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: HamaColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: HamaColors.border)),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(color: HamaColors.teal.withOpacity(.10), shape: BoxShape.circle), child: Text('${stage.sortOrder}', style: const TextStyle(fontWeight: FontWeight.w900, color: HamaColors.teal))),
-                            const SizedBox(width: 10),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(stage.title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                              const SizedBox(height: 5),
-                              Text('${tr('Deadline')}: ${shortDate(stage.deadline)}', style: const TextStyle(color: HamaColors.muted)),
-                              if (target != null) ...[
-                                const SizedBox(height: 9),
-                                Text('${_fmt(done)} / ${_fmt(target)} ${stage.quantityUnit ?? task.quantityUnit ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                                const SizedBox(height: 5),
-                                LinearProgressIndicator(value: ratio, minHeight: 7, borderRadius: BorderRadius.circular(8)),
-                              ],
-                            ])),
-                            if (_canWriteProgress(task, profile)) IconButton(onPressed: () => _addDailyUpdate(task, stage), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily achievement')),
-                          ]),
-                          const Divider(height: 22),
-                          _auditLine(stage.creatorName, stage.creatorAvatarUrl, stage.createdAt, 'Recorded by'),
-                        ]),
+                        decoration: BoxDecoration(
+                            color: HamaColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: HamaColors.border)),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                        width: 38,
+                                        height: 38,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                            color: HamaColors.teal
+                                                .withOpacity(.10),
+                                            shape: BoxShape.circle),
+                                        child: Text('${stage.sortOrder}',
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w900,
+                                                color: HamaColors.teal))),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                        child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                          Text(stage.title,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 16)),
+                                          const SizedBox(height: 5),
+                                          Text(
+                                              '${tr('Deadline')}: ${shortDate(stage.deadline)}',
+                                              style: const TextStyle(
+                                                  color: HamaColors.muted)),
+                                          if (target != null) ...[
+                                            const SizedBox(height: 9),
+                                            Text(
+                                                '${_fmt(done)} / ${_fmt(target)} ${stage.quantityUnit ?? task.quantityUnit ?? ''}',
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w800)),
+                                            const SizedBox(height: 5),
+                                            LinearProgressIndicator(
+                                                value: ratio,
+                                                minHeight: 7,
+                                                borderRadius:
+                                                    BorderRadius.circular(8)),
+                                          ],
+                                        ])),
+                                    if (_canWriteProgress(task, profile))
+                                      IconButton(
+                                          onPressed: () =>
+                                              _addDailyUpdate(task, stage),
+                                          icon: const Icon(
+                                              Icons.add_circle_outline_rounded),
+                                          tooltip: tr('Add daily achievement')),
+                                  ]),
+                              const Divider(height: 22),
+                              _auditLine(
+                                  stage.creatorName,
+                                  stage.creatorAvatarUrl,
+                                  stage.createdAt,
+                                  'Recorded by'),
+                            ]),
                       );
                     },
                   );
@@ -982,45 +1333,101 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         if (!snap.hasData) return const _SectionLoading();
         final updates = snap.data!;
         final grouped = <String, List<TaskDailyUpdate>>{};
-        for (final u in updates) grouped.putIfAbsent(u.workDate.toIso8601String().substring(0, 10), () => []).add(u);
+        for (final u in updates)
+          grouped
+              .putIfAbsent(
+                  u.workDate.toIso8601String().substring(0, 10), () => [])
+              .add(u);
         final profile = ref.watch(profileProvider).valueOrNull;
         return _proCard(
           icon: Icons.calendar_month_rounded,
           title: 'Daily Work Log',
-          trailing: _canWriteDailyLog(task, profile) ? IconButton(onPressed: () => _addDailyUpdate(task, null), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily work')) : null,
+          trailing: _canWriteDailyLog(task, profile)
+              ? IconButton(
+                  onPressed: () => _addDailyUpdate(task, null),
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  tooltip: tr('Add daily work'))
+              : null,
           child: grouped.isEmpty
-              ? const _EmptyInline(icon: Icons.event_note_outlined, text: 'No daily work recorded yet.')
-              : Column(children: grouped.entries.map((entry) {
+              ? const _EmptyInline(
+                  icon: Icons.event_note_outlined,
+                  text: 'No daily work recorded yet.')
+              : Column(
+                  children: grouped.entries.map((entry) {
                   final dayItems = entry.value;
-                  final total = dayItems.fold<double>(0, (s, u) => s + (u.quantityDone ?? 0));
+                  final total = dayItems.fold<double>(
+                      0, (s, u) => s + (u.quantityDone ?? 0));
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(color: HamaColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: HamaColors.border)),
+                    decoration: BoxDecoration(
+                        color: HamaColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: HamaColors.border)),
                     child: ExpansionTile(
                       tilePadding: const EdgeInsets.symmetric(horizontal: 14),
                       childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                      leading: Container(width: 42, height: 42, alignment: Alignment.center, decoration: BoxDecoration(color: HamaColors.navy.withOpacity(.07), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.today_rounded, color: HamaColors.navy2)),
-                      title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w900)),
-                      subtitle: Text('${dayItems.length} ${tr('updates')} • ${_fmt(total)} ${task.quantityUnit ?? ''}'),
-                      children: dayItems.map((u) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: HamaColors.border)),
-                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          UserAvatar(user: AvatarData(u.creatorName, u.creatorAvatarUrl), radius: 20),
-                          const SizedBox(width: 10),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(u.creatorName, style: const TextStyle(fontWeight: FontWeight.w900)),
-                            const SizedBox(height: 3),
-                            Text('${u.quantityDone == null ? tr('No quantity') : '${_fmt(u.quantityDone!)} ${task.quantityUnit ?? ''}'}', style: const TextStyle(fontWeight: FontWeight.w800, color: HamaColors.teal)),
-                            if (u.workNote?.isNotEmpty == true) ...[const SizedBox(height: 5), Text(u.workNote!)],
-                            const SizedBox(height: 5),
-                            Text(dateTimeText(u.createdAt), style: const TextStyle(fontSize: 12, color: HamaColors.muted)),
-                            const SizedBox(height: 8),
-                            _dailyAttachments(u, task),
-                          ])),
-                        ]),
-                      )).toList(),
+                      leading: Container(
+                          width: 42,
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                              color: HamaColors.navy.withOpacity(.07),
+                              borderRadius: BorderRadius.circular(12)),
+                          child: const Icon(Icons.today_rounded,
+                              color: HamaColors.navy2)),
+                      title: Text(entry.key,
+                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                      subtitle: Text(
+                          '${dayItems.length} ${tr('updates')} • ${_fmt(total)} ${task.quantityUnit ?? ''}'),
+                      children: dayItems
+                          .map((u) => Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border:
+                                        Border.all(color: HamaColors.border)),
+                                child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      UserAvatar(
+                                          user: AvatarData(u.creatorName,
+                                              u.creatorAvatarUrl),
+                                          radius: 20),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                          child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                            Text(u.creatorName,
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w900)),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                                '${u.quantityDone == null ? tr('No quantity') : '${_fmt(u.quantityDone!)} ${task.quantityUnit ?? ''}'}',
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    color: HamaColors.teal)),
+                                            if (u.workNote?.isNotEmpty ==
+                                                true) ...[
+                                              const SizedBox(height: 5),
+                                              Text(u.workNote!)
+                                            ],
+                                            const SizedBox(height: 5),
+                                            Text(dateTimeText(u.createdAt),
+                                                style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: HamaColors.muted)),
+                                            const SizedBox(height: 8),
+                                            _dailyAttachments(u, task),
+                                          ])),
+                                    ]),
+                              ))
+                          .toList(),
                     ),
                   );
                 }).toList()),
@@ -1029,19 +1436,35 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     );
   }
 
-  Widget _proCard({required IconData icon, required String title, Widget? trailing, required Widget child}) {
+  Widget _proCard(
+      {required IconData icon,
+      required String title,
+      Widget? trailing,
+      required Widget child}) {
     return Card(
       elevation: 0,
-      child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(color: HamaColors.teal.withOpacity(.10), borderRadius: BorderRadius.circular(13)), child: Icon(icon, color: HamaColors.teal)),
-          const SizedBox(width: 10),
-          Expanded(child: Text(tr(title), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
-          if (trailing != null) trailing,
-        ]),
-        const SizedBox(height: 14),
-        child,
-      ])),
+      child: Padding(
+          padding: const EdgeInsets.all(16),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                      color: HamaColors.teal.withOpacity(.10),
+                      borderRadius: BorderRadius.circular(13)),
+                  child: Icon(icon, color: HamaColors.teal)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Text(tr(title),
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w900))),
+              if (trailing != null) trailing,
+            ]),
+            const SizedBox(height: 14),
+            child,
+          ])),
     );
   }
 
@@ -1049,8 +1472,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     return Row(children: [
       UserAvatar(user: AvatarData(name, avatar), radius: 16),
       const SizedBox(width: 8),
-      Expanded(child: Text('${tr(label)}: $name', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: HamaColors.muted))),
-      Text(dateTimeText(date), style: const TextStyle(fontSize: 11, color: HamaColors.muted)),
+      Expanded(
+          child: Text('${tr(label)}: $name',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: HamaColors.muted))),
+      Text(dateTimeText(date),
+          style: const TextStyle(fontSize: 11, color: HamaColors.muted)),
     ]);
   }
 
@@ -1059,7 +1488,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     final title = TextEditingController();
     final qty = TextEditingController();
     final unit = TextEditingController();
-    DateTime deadline = task.deadline ?? DateTime.now().add(const Duration(days: 1));
+    DateTime deadline =
+        task.deadline ?? DateTime.now().add(const Duration(days: 1));
 
     await showDialog<void>(
       context: context,
@@ -1070,9 +1500,18 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: title, decoration: InputDecoration(labelText: tr('Stage name'))),
-                TextField(controller: qty, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: tr('Stage quantity'))),
-                TextField(controller: unit, decoration: InputDecoration(labelText: tr('Unit'))),
+                TextField(
+                    controller: title,
+                    decoration: InputDecoration(labelText: tr('Stage name'))),
+                TextField(
+                    controller: qty,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        InputDecoration(labelText: tr('Stage quantity'))),
+                TextField(
+                    controller: unit,
+                    decoration: InputDecoration(labelText: tr('Unit'))),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text('${tr('Deadline')}: ${shortDate(deadline)}'),
@@ -1085,7 +1524,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                         lastDate: DateTime(2100),
                         initialDate: deadline,
                       );
-                      if (d != null) setDialogState(() => deadline = DateTime(d.year, d.month, d.day, 17));
+                      if (d != null)
+                        setDialogState(() =>
+                            deadline = DateTime(d.year, d.month, d.day, 17));
                     },
                   ),
                 ),
@@ -1093,23 +1534,29 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const T('Cancel')),
             FilledButton(
               onPressed: () async {
                 if (title.text.trim().isEmpty) return;
                 try {
                   await ref.read(repoProvider).createTaskStage(
-                    taskId: task.id,
-                    title: title.text,
-                    deadline: deadline,
-                    targetQuantity: double.tryParse(qty.text.trim()),
-                    quantityUnit: unit.text.trim().isEmpty ? task.quantityUnit : unit.text,
-                    sortOrder: order,
-                  );
+                        taskId: task.id,
+                        title: title.text,
+                        deadline: deadline,
+                        targetQuantity: double.tryParse(qty.text.trim()),
+                        quantityUnit: unit.text.trim().isEmpty
+                            ? task.quantityUnit
+                            : unit.text,
+                        sortOrder: order,
+                      );
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                   setState(() {});
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                  if (mounted)
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('$e')));
                 }
               },
               child: const T('Save'),
@@ -1126,7 +1573,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
 
   Future<void> _addDailyUpdate(Task task, TaskStage? stage) async {
     if (task.status != 'in_progress') {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Start the task before recording progress'))));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr('Start the task before recording progress'))));
       return;
     }
     final qty = TextEditingController();
@@ -1138,21 +1587,26 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(stage == null ? tr('Add daily achievement') : '${tr('Daily achievement')}: ${stage.title}'),
+          title: Text(stage == null
+              ? tr('Add daily achievement')
+              : '${tr('Daily achievement')}: ${stage.title}'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: qty,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(labelText: tr('Quantity completed')),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration:
+                      InputDecoration(labelText: tr('Quantity completed')),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: note,
                   maxLines: 4,
-                  decoration: InputDecoration(labelText: tr('What did you do today?')),
+                  decoration:
+                      InputDecoration(labelText: tr('What did you do today?')),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -1173,14 +1627,30 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                 if (_can('attachments.upload')) ...[
                   const Divider(),
                   Row(children: [
-                    const Expanded(child: T('Attachments', style: TextStyle(fontWeight: FontWeight.w800))),
+                    const Expanded(
+                        child: T('Attachments',
+                            style: TextStyle(fontWeight: FontWeight.w800))),
                     IconButton(
                       onPressed: () async {
                         final result = await FilePicker.platform.pickFiles(
-                          withData: true, allowMultiple: true, type: FileType.custom,
-                          allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp'],
+                          withData: true,
+                          allowMultiple: true,
+                          type: FileType.custom,
+                          allowedExtensions: [
+                            'doc',
+                            'docx',
+                            'xls',
+                            'xlsx',
+                            'pdf',
+                            'jpg',
+                            'jpeg',
+                            'png',
+                            'webp'
+                          ],
                         );
-                        if (result != null) setDialogState(() => pickedFiles.addAll(result.files.where((f) => f.bytes != null)));
+                        if (result != null)
+                          setDialogState(() => pickedFiles.addAll(
+                              result.files.where((f) => f.bytes != null)));
                       },
                       icon: const Icon(Icons.attach_file_rounded),
                       tooltip: tr('Add attachment'),
@@ -1188,38 +1658,58 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   ]),
                   if (pickedFiles.isNotEmpty)
                     ...pickedFiles.asMap().entries.map((e) => ListTile(
-                      dense: true, contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.insert_drive_file_outlined),
-                      title: Text(e.value.name, overflow: TextOverflow.ellipsis),
-                      trailing: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setDialogState(() => pickedFiles.removeAt(e.key))),
-                    )),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.insert_drive_file_outlined),
+                          title: Text(e.value.name,
+                              overflow: TextOverflow.ellipsis),
+                          trailing: IconButton(
+                              icon: const Icon(Icons.close_rounded),
+                              onPressed: () => setDialogState(
+                                  () => pickedFiles.removeAt(e.key))),
+                        )),
                 ],
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const T('Cancel')),
             FilledButton(
               onPressed: () async {
                 final q = double.tryParse(qty.text.trim());
                 if (q != null && q < 0) return;
-                if (q == null && note.text.trim().isEmpty && pickedFiles.isEmpty) return;
+                if (q == null &&
+                    note.text.trim().isEmpty &&
+                    pickedFiles.isEmpty) return;
                 try {
                   final update = await ref.read(repoProvider).saveDailyUpdate(
-                    taskId: task.id, stageId: stage?.id, workDate: date, quantityDone: q, workNote: note.text,
-                  );
+                        taskId: task.id,
+                        stageId: stage?.id,
+                        workDate: date,
+                        quantityDone: q,
+                        workNote: note.text,
+                      );
                   for (final file in pickedFiles) {
                     if (file.bytes != null) {
                       await ref.read(repoProvider).uploadAttachment(
-                        dailyUpdateId: update.id, fileName: file.name, bytes: file.bytes!, mimeType: _mimeFor(file.extension ?? ''),
-                      );
+                            dailyUpdateId: update.id,
+                            fileName: file.name,
+                            bytes: file.bytes!,
+                            mimeType: _mimeFor(file.extension ?? ''),
+                          );
                     }
                   }
-                  await ref.read(repoProvider).finalizeDailyUpdateAttachments(update.id);
+                  await ref
+                      .read(repoProvider)
+                      .finalizeDailyUpdateAttachments(update.id);
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                   setState(() {});
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                  if (mounted)
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('$e')));
                 }
               },
               child: const T('Save'),
@@ -1239,8 +1729,30 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       builder: (context, snap) {
         final items = snap.data ?? const <AttachmentItem>[];
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Text(tr('Attachments'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: HamaColors.muted))]),
-          if (items.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: items.map((a) => ActionChip(avatar: const Icon(Icons.insert_drive_file_outlined, size: 16), label: Text(a.fileName, overflow: TextOverflow.ellipsis), onPressed: () async { final url = await ref.read(repoProvider).attachmentUrl(a); await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'); })).toList()),
+          Row(children: [
+            Text(tr('Attachments'),
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: HamaColors.muted))
+          ]),
+          if (items.isNotEmpty)
+            Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: items
+                    .map((a) => ActionChip(
+                        avatar: const Icon(Icons.insert_drive_file_outlined,
+                            size: 16),
+                        label:
+                            Text(a.fileName, overflow: TextOverflow.ellipsis),
+                        onPressed: () async {
+                          final url =
+                              await ref.read(repoProvider).attachmentUrl(a);
+                          await launchUrl(Uri.parse(url),
+                              webOnlyWindowName: '_blank');
+                        }))
+                    .toList()),
         ]);
       },
     );
@@ -1254,15 +1766,29 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const Expanded(child: T('Attachments', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-                if (!_taskIsClosed(task) && !_isFollower(task, ref.read(profileProvider).valueOrNull) && _can('attachments.upload')) IconButton(onPressed: _addAttachment, icon: const Icon(Icons.attach_file_rounded), tooltip: tr('Add attachment')),
+                const Expanded(
+                    child: T('Attachments',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold))),
+                if (!_taskIsClosed(task) &&
+                    !_isFollower(task, ref.read(profileProvider).valueOrNull) &&
+                    _can('attachments.upload'))
+                  IconButton(
+                      onPressed: _addAttachment,
+                      icon: const Icon(Icons.attach_file_rounded),
+                      tooltip: tr('Add attachment')),
               ]),
               const SizedBox(height: 8),
-              if (snap.connectionState == ConnectionState.waiting) const LinearProgressIndicator()
-              else if (items.isEmpty) const _EmptyInline(icon: Icons.attach_file_outlined, text: 'No attachments')
-              else Column(children: items.map(_attachmentTile).toList()),
+              if (snap.connectionState == ConnectionState.waiting)
+                const LinearProgressIndicator()
+              else if (items.isEmpty)
+                const _EmptyInline(
+                    icon: Icons.attach_file_outlined, text: 'No attachments')
+              else
+                Column(children: items.map(_attachmentTile).toList()),
             ]),
           ),
         );
@@ -1273,23 +1799,63 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
   Widget _attachmentTile(AttachmentItem item) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      leading: const CircleAvatar(child: Icon(Icons.insert_drive_file_outlined)),
-      title: Text(item.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
-      subtitle: Row(children: [UserAvatar(user: AvatarData(item.uploaderName, item.uploaderAvatarUrl), radius: 13), const SizedBox(width: 6), Expanded(child: Text('${item.uploaderName} • ${item.createdAt == null ? '-' : dateTimeText(item.createdAt!)}', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: HamaColors.muted)))]),
-      trailing: IconButton(onPressed: () async { final url = await ref.read(repoProvider).attachmentUrl(item); await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'); }, icon: const Icon(Icons.open_in_new_rounded)),
+      leading:
+          const CircleAvatar(child: Icon(Icons.insert_drive_file_outlined)),
+      title: Text(item.fileName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Row(children: [
+        UserAvatar(
+            user: AvatarData(item.uploaderName, item.uploaderAvatarUrl),
+            radius: 13),
+        const SizedBox(width: 6),
+        Expanded(
+            child: Text(
+                '${item.uploaderName} • ${item.createdAt == null ? '-' : dateTimeText(item.createdAt!)}',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: HamaColors.muted)))
+      ]),
+      trailing: IconButton(
+          onPressed: () async {
+            final url = await ref.read(repoProvider).attachmentUrl(item);
+            await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank');
+          },
+          icon: const Icon(Icons.open_in_new_rounded)),
     );
   }
 
   Future<void> _addAttachment() async {
-    final result = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true, type: FileType.custom, allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp']);
+    final result = await FilePicker.platform.pickFiles(
+        withData: true,
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: [
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'pdf',
+          'jpg',
+          'jpeg',
+          'png',
+          'webp'
+        ]);
     if (result == null) return;
     for (final file in result.files) {
       final bytes = file.bytes;
       if (bytes == null) continue;
       try {
-        await ref.read(repoProvider).uploadAttachment(taskId: widget.taskId, fileName: file.name, bytes: bytes, mimeType: file.extension == null ? null : _mimeFor(file.extension!));
+        await ref.read(repoProvider).uploadAttachment(
+            taskId: widget.taskId,
+            fileName: file.name,
+            bytes: bytes,
+            mimeType:
+                file.extension == null ? null : _mimeFor(file.extension!));
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        if (mounted)
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('$e')));
       }
     }
     if (mounted) setState(() {});
@@ -1297,15 +1863,25 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
 
   String _mimeFor(String ext) {
     switch (ext.toLowerCase()) {
-      case 'pdf': return 'application/pdf';
-      case 'doc': return 'application/msword';
-      case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'xls': return 'application/vnd.ms-excel';
-      case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      case 'jpg': case 'jpeg': return 'image/jpeg';
-      case 'png': return 'image/png';
-      case 'webp': return 'image/webp';
-      default: return 'application/octet-stream';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
     }
   }
 
@@ -1315,61 +1891,164 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       spacing: 8,
       runSpacing: 8,
       children: [
-        if (task.status == 'not_started' && _canExecutionAction(task, profile, 'tasks.start')) OutlinedButton.icon(onPressed: () => _setStatus('in_progress'), icon: const Icon(Icons.play_arrow_rounded), label: const T('Start')),
-        if (task.status == 'in_progress' && _canExecutionAction(task, profile, 'tasks.request_completion')) OutlinedButton.icon(onPressed: () => _requestCompletion(task), icon: const Icon(Icons.done_all_rounded), label: const T('Request completion')),
-        if (task.status == 'ready_for_completion' && task.followerId != null && profile?.id == task.followerId)
-          FilledButton.icon(onPressed: () => _reviewCompletion(task), icon: const Icon(Icons.fact_check_rounded), label: const T('Follow-up completed')),
-        if ((task.status == 'awaiting_approval' || (task.status == 'ready_for_completion' && task.followerId == null)) && isAdmin)
-          FilledButton.icon(onPressed: () => _confirm(task), icon: const Icon(Icons.verified_rounded), label: const T('Approve operation')),
-        if (_can('tasks.cancel') && task.status != 'cancelled' && task.status != 'completed') OutlinedButton.icon(onPressed: _cancel, icon: const Icon(Icons.cancel_outlined), label: const T('Cancel')),
-        if (_can('tasks.reopen') && task.status == 'completed') OutlinedButton.icon(onPressed: _reopen, icon: const Icon(Icons.replay_rounded), label: const T('Reopen')),
-        if (_can('tasks.evaluate')) FilledButton.icon(onPressed: _evaluate, icon: const Icon(Icons.star_rate_rounded), label: const T('Evaluate')),
-        if (isAdmin) OutlinedButton.icon(onPressed: () => _editTask(task), icon: const Icon(Icons.edit_rounded), label: const T('Edit')),
-        if (isAdmin) OutlinedButton.icon(onPressed: _deleteTask, icon: const Icon(Icons.delete_outline_rounded), label: const T('Delete')),
+        if (task.status == 'not_started' &&
+            _canExecutionAction(task, profile, 'tasks.start'))
+          OutlinedButton.icon(
+              onPressed: () => _setStatus('in_progress'),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const T('Start')),
+        if (task.status == 'in_progress' &&
+            _canExecutionAction(task, profile, 'tasks.request_completion'))
+          OutlinedButton.icon(
+              onPressed: () => _requestCompletion(task),
+              icon: const Icon(Icons.done_all_rounded),
+              label: const T('Request completion')),
+        if (task.status == 'ready_for_completion' &&
+            task.followerId != null &&
+            profile?.id == task.followerId)
+          FilledButton.icon(
+              onPressed: () => _reviewCompletion(task),
+              icon: const Icon(Icons.fact_check_rounded),
+              label: const T('Follow-up completed')),
+        if ((task.status == 'awaiting_approval' ||
+                (task.status == 'ready_for_completion' &&
+                    task.followerId == null)) &&
+            isAdmin)
+          FilledButton.icon(
+              onPressed: () => _confirm(task),
+              icon: const Icon(Icons.verified_rounded),
+              label: const T('Approve operation')),
+        if (_can('tasks.cancel') &&
+            task.status != 'cancelled' &&
+            task.status != 'completed')
+          OutlinedButton.icon(
+              onPressed: _cancel,
+              icon: const Icon(Icons.cancel_outlined),
+              label: const T('Cancel')),
+        if (_can('tasks.reopen') && task.status == 'completed')
+          OutlinedButton.icon(
+              onPressed: _reopen,
+              icon: const Icon(Icons.replay_rounded),
+              label: const T('Reopen')),
+        if (_can('tasks.evaluate'))
+          FilledButton.icon(
+              onPressed: _evaluate,
+              icon: const Icon(Icons.star_rate_rounded),
+              label: const T('Evaluate')),
+        if (isAdmin)
+          OutlinedButton.icon(
+              onPressed: () => _editTask(task),
+              icon: const Icon(Icons.edit_rounded),
+              label: const T('Edit')),
+        if (isAdmin)
+          OutlinedButton.icon(
+              onPressed: _deleteTask,
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const T('Delete')),
       ],
     );
   }
 
   Future<void> _requestCompletion(Task task) async {
-    if (!task.evidenceRequired) { await _setStatus('ready_for_completion'); return; }
+    if (!task.evidenceRequired) {
+      await _setStatus('ready_for_completion');
+      return;
+    }
     final note = TextEditingController();
-    bool uploading = false; bool attached = false;
+    bool uploading = false;
+    bool attached = false;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const T('Completion proof required'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const T('Add a written proof or attach a file before requesting completion.'),
+            const T(
+                'Add a written proof or attach a file before requesting completion.'),
             const SizedBox(height: 12),
-            TextField(controller: note, maxLines: 4, decoration: InputDecoration(labelText: tr('Achievement proof / note'))),
+            TextField(
+                controller: note,
+                maxLines: 4,
+                decoration:
+                    InputDecoration(labelText: tr('Achievement proof / note'))),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: uploading ? null : () async {
-                final result = await FilePicker.platform.pickFiles(withData: true, type: FileType.custom, allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp']);
-                if (result == null || result.files.first.bytes == null) return;
-                setDialogState(() => uploading = true);
-                try {
-                  await ref.read(repoProvider).uploadAttachment(taskId: task.id, fileName: result.files.first.name, bytes: result.files.first.bytes!, mimeType: _mimeFor(result.files.first.extension ?? ''), isCompletionProof: true);
-                  setDialogState(() => attached = true);
-                } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); }
-                finally { if (dialogContext.mounted) setDialogState(() => uploading = false); }
-              },
+              onPressed: uploading
+                  ? null
+                  : () async {
+                      final result = await FilePicker.platform.pickFiles(
+                          withData: true,
+                          type: FileType.custom,
+                          allowedExtensions: [
+                            'doc',
+                            'docx',
+                            'xls',
+                            'xlsx',
+                            'pdf',
+                            'jpg',
+                            'jpeg',
+                            'png',
+                            'webp'
+                          ]);
+                      if (result == null || result.files.first.bytes == null)
+                        return;
+                      setDialogState(() => uploading = true);
+                      try {
+                        await ref.read(repoProvider).uploadAttachment(
+                            taskId: task.id,
+                            fileName: result.files.first.name,
+                            bytes: result.files.first.bytes!,
+                            mimeType:
+                                _mimeFor(result.files.first.extension ?? ''),
+                            isCompletionProof: true);
+                        setDialogState(() => attached = true);
+                      } catch (e) {
+                        if (mounted)
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(SnackBar(content: Text('$e')));
+                      } finally {
+                        if (dialogContext.mounted)
+                          setDialogState(() => uploading = false);
+                      }
+                    },
               icon: const Icon(Icons.attach_file_rounded),
               label: Text(attached ? tr('Proof attached') : tr('Attach proof')),
             ),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
-            FilledButton(onPressed: uploading ? null : () async {
-              if (note.text.trim().isEmpty && !attached) { ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text(tr('Add a proof note or attachment')))); return; }
-              try {
-                await ref.read(repoProvider).updateTaskStatus(task.id, 'ready_for_completion', proofNote: note.text.trim().isEmpty ? null : note.text.trim());
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-                await _refresh();
-                ref.invalidate(tasksProvider('my')); ref.invalidate(tasksProvider('team')); ref.invalidate(dashboardProvider);
-              } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); }
-            }, child: const T('Request completion'))
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const T('Cancel')),
+            FilledButton(
+                onPressed: uploading
+                    ? null
+                    : () async {
+                        if (note.text.trim().isEmpty && !attached) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                  content: Text(
+                                      tr('Add a proof note or attachment'))));
+                          return;
+                        }
+                        try {
+                          await ref.read(repoProvider).updateTaskStatus(
+                              task.id, 'ready_for_completion',
+                              proofNote: note.text.trim().isEmpty
+                                  ? null
+                                  : note.text.trim());
+                          if (dialogContext.mounted)
+                            Navigator.pop(dialogContext);
+                          await _refresh();
+                          ref.invalidate(tasksProvider('my'));
+                          ref.invalidate(tasksProvider('team'));
+                          ref.invalidate(dashboardProvider);
+                        } catch (e) {
+                          if (mounted)
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(content: Text('$e')));
+                        }
+                      },
+                child: const T('Request completion'))
           ],
         ),
       ),
@@ -1385,7 +2064,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ref.invalidate(tasksProvider('team'));
       ref.invalidate(dashboardProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -1397,7 +2078,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ref.invalidate(tasksProvider('team'));
       ref.invalidate(dashboardProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -1408,7 +2091,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ref.invalidate(tasksProvider('team'));
       ref.invalidate(dashboardProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -1419,7 +2104,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ref.invalidate(tasksProvider('team'));
       ref.invalidate(dashboardProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -1430,7 +2117,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ref.invalidate(tasksProvider('team'));
       ref.invalidate(dashboardProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -1439,10 +2128,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       context: context,
       builder: (c) => AlertDialog(
         title: const T('Delete task'),
-        content: const T('This action cannot be undone. Are you sure you want to delete this task?'),
+        content: const T(
+            'This action cannot be undone. Are you sure you want to delete this task?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const T('Cancel')),
-          FilledButton.tonal(onPressed: () => Navigator.pop(c, true), child: const T('Delete')),
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const T('Cancel')),
+          FilledButton.tonal(
+              onPressed: () => Navigator.pop(c, true),
+              child: const T('Delete')),
         ],
       ),
     );
@@ -1454,7 +2148,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ref.invalidate(dashboardProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -1463,12 +2159,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     if (!mounted) return;
     final title = TextEditingController(text: task.title);
     final description = TextEditingController(text: task.description ?? '');
-    final quantity = TextEditingController(text: task.totalQuantity == null ? '' : _fmt(task.totalQuantity!));
+    final quantity = TextEditingController(
+        text: task.totalQuantity == null ? '' : _fmt(task.totalQuantity!));
     final unit = TextEditingController(text: task.quantityUnit ?? '');
     String priority = task.priority;
-    String responsible = task.responsibleId ?? (users.isEmpty ? '' : users.first.id);
+    String responsible =
+        task.responsibleId ?? (users.isEmpty ? '' : users.first.id);
     String? follower = task.followerId;
-    DateTime deadline = task.deadline ?? DateTime.now().add(const Duration(days: 1));
+    DateTime deadline =
+        task.deadline ?? DateTime.now().add(const Duration(days: 1));
     bool evidence = task.evidenceRequired;
     const bool confirmation = true;
 
@@ -1481,34 +2180,61 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             width: 620,
             child: SingleChildScrollView(
               child: Column(children: [
-                TextField(controller: title, decoration: InputDecoration(labelText: tr('Title *'))),
+                TextField(
+                    controller: title,
+                    decoration: InputDecoration(labelText: tr('Title *'))),
                 const SizedBox(height: 10),
-                TextField(controller: description, maxLines: 4, decoration: InputDecoration(labelText: tr('Description'))),
+                TextField(
+                    controller: description,
+                    maxLines: 4,
+                    decoration: InputDecoration(labelText: tr('Description'))),
                 const SizedBox(height: 10),
                 Row(children: [
-                  Expanded(child: TextField(controller: quantity, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: tr('Total quantity')))),
+                  Expanded(
+                      child: TextField(
+                          controller: quantity,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: InputDecoration(
+                              labelText: tr('Total quantity')))),
                   const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: unit, decoration: InputDecoration(labelText: tr('Unit')))),
+                  Expanded(
+                      child: TextField(
+                          controller: unit,
+                          decoration: InputDecoration(labelText: tr('Unit')))),
                 ]),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   value: priority,
                   decoration: InputDecoration(labelText: tr('Priority')),
-                  items: const [DropdownMenuItem(value: 'normal', child: T('Normal')), DropdownMenuItem(value: 'urgent', child: T('Urgent'))],
-                  onChanged: (v) => setDialogState(() => priority = v ?? priority),
+                  items: const [
+                    DropdownMenuItem(value: 'normal', child: T('Normal')),
+                    DropdownMenuItem(value: 'urgent', child: T('Urgent'))
+                  ],
+                  onChanged: (v) =>
+                      setDialogState(() => priority = v ?? priority),
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   value: responsible.isEmpty ? null : responsible,
                   decoration: InputDecoration(labelText: tr('Responsible')),
-                  items: users.map((u) => DropdownMenuItem(value: u.id, child: Text(u.fullName))).toList(),
-                  onChanged: (v) => setDialogState(() => responsible = v ?? responsible),
+                  items: users
+                      .map((u) => DropdownMenuItem(
+                          value: u.id, child: Text(u.fullName)))
+                      .toList(),
+                  onChanged: (v) =>
+                      setDialogState(() => responsible = v ?? responsible),
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String?>(
                   value: follower,
                   decoration: InputDecoration(labelText: tr('Follower')),
-                  items: [const DropdownMenuItem<String?>(value: null, child: T('No follower')), ...users.map((u) => DropdownMenuItem<String?>(value: u.id, child: Text(u.fullName)))],
+                  items: [
+                    const DropdownMenuItem<String?>(
+                        value: null, child: T('No follower')),
+                    ...users.map((u) => DropdownMenuItem<String?>(
+                        value: u.id, child: Text(u.fullName)))
+                  ],
                   onChanged: (v) => setDialogState(() => follower = v),
                 ),
                 const SizedBox(height: 10),
@@ -1518,41 +2244,63 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                   title: Text('${tr('Deadline')}: ${shortDate(deadline)}'),
                   trailing: const Icon(Icons.edit_calendar_rounded),
                   onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: deadline, firstDate: DateTime(2020), lastDate: DateTime(2100));
-                    if (picked != null) setDialogState(() => deadline = DateTime(picked.year, picked.month, picked.day, deadline.hour, deadline.minute));
+                    final picked = await showDatePicker(
+                        context: context,
+                        initialDate: deadline,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100));
+                    if (picked != null)
+                      setDialogState(() => deadline = DateTime(
+                          picked.year,
+                          picked.month,
+                          picked.day,
+                          deadline.hour,
+                          deadline.minute));
                   },
                 ),
-                SwitchListTile(contentPadding: EdgeInsets.zero, value: evidence, title: const T('Evidence required'), onChanged: (v) => setDialogState(() => evidence = v)),
-                const SwitchListTile(contentPadding: EdgeInsets.zero, value: true, title: T('Admin approval required'), onChanged: null),
+                SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: evidence,
+                    title: const T('Evidence required'),
+                    onChanged: (v) => setDialogState(() => evidence = v)),
+                const SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: true,
+                    title: T('Admin approval required'),
+                    onChanged: null),
               ]),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const T('Cancel')),
             FilledButton(
               onPressed: () async {
                 if (title.text.trim().isEmpty || responsible.isEmpty) return;
                 try {
                   await ref.read(repoProvider).updateTask(
-                    id: task.id,
-                    title: title.text,
-                    description: description.text,
-                    priority: priority,
-                    deadline: deadline,
-                    responsibleId: responsible,
-                    followerId: follower,
-                    evidenceRequired: evidence,
-                    managerConfirmationRequired: confirmation,
-                    totalQuantity: double.tryParse(quantity.text.trim()),
-                    quantityUnit: unit.text,
-                  );
+                        id: task.id,
+                        title: title.text,
+                        description: description.text,
+                        priority: priority,
+                        deadline: deadline,
+                        responsibleId: responsible,
+                        followerId: follower,
+                        evidenceRequired: evidence,
+                        managerConfirmationRequired: confirmation,
+                        totalQuantity: double.tryParse(quantity.text.trim()),
+                        quantityUnit: unit.text,
+                      );
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                   await _refresh();
                   ref.invalidate(tasksProvider('my'));
                   ref.invalidate(tasksProvider('team'));
                   ref.invalidate(dashboardProvider);
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                  if (mounted)
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('$e')));
                 }
               },
               child: const T('Save'),
@@ -1561,7 +2309,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         ),
       ),
     );
-    title.dispose(); description.dispose(); quantity.dispose(); unit.dispose();
+    title.dispose();
+    description.dispose();
+    quantity.dispose();
+    unit.dispose();
   }
 
   Future<void> _evaluate() async {
@@ -1582,23 +2333,36 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
             ValueListenableBuilder<int>(
               valueListenable: score,
               builder: (_, value, __) => Slider(
-                min: 1, max: 10, divisions: 9, value: value.toDouble(),
+                min: 1,
+                max: 10,
+                divisions: 9,
+                value: value.toDouble(),
                 onChanged: (v) => score.value = v.round(),
               ),
             ),
-            TextField(controller: comment, maxLines: 4, decoration: InputDecoration(labelText: tr('Evaluation comment'))),
+            TextField(
+                controller: comment,
+                maxLines: 4,
+                decoration:
+                    InputDecoration(labelText: tr('Evaluation comment'))),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const T('Cancel')),
           FilledButton(
             onPressed: () async {
               try {
-                await ref.read(repoProvider).evaluateTask(widget.taskId, score.value, comment.text);
+                await ref
+                    .read(repoProvider)
+                    .evaluateTask(widget.taskId, score.value, comment.text);
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
                 await _refresh();
               } catch (e) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                if (mounted)
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text('$e')));
               }
             },
             child: const T('Save'),
@@ -1622,49 +2386,85 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
           title: const T('Reply'),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: controller, maxLines: 6, decoration: InputDecoration(hintText: tr('Write a comment...')),),
+              TextField(
+                controller: controller,
+                maxLines: 6,
+                decoration: InputDecoration(hintText: tr('Write a comment...')),
+              ),
               if (_can('attachments.upload')) ...[
                 const SizedBox(height: 12),
                 Row(children: [
-                  const Expanded(child: T('Attachments', style: TextStyle(fontWeight: FontWeight.w800))),
+                  const Expanded(
+                      child: T('Attachments',
+                          style: TextStyle(fontWeight: FontWeight.w800))),
                   IconButton(
                     onPressed: () async {
                       final result = await FilePicker.platform.pickFiles(
-                        withData: true, allowMultiple: true, type: FileType.custom,
-                        allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp'],
+                        withData: true,
+                        allowMultiple: true,
+                        type: FileType.custom,
+                        allowedExtensions: [
+                          'doc',
+                          'docx',
+                          'xls',
+                          'xlsx',
+                          'pdf',
+                          'jpg',
+                          'jpeg',
+                          'png',
+                          'webp'
+                        ],
                       );
-                      if (result != null) setDialogState(() => pickedFiles.addAll(result.files.where((f) => f.bytes != null)));
+                      if (result != null)
+                        setDialogState(() => pickedFiles.addAll(
+                            result.files.where((f) => f.bytes != null)));
                     },
                     icon: const Icon(Icons.attach_file_rounded),
                   ),
                 ]),
                 if (pickedFiles.isNotEmpty)
                   ...pickedFiles.asMap().entries.map((e) => ListTile(
-                    dense: true, contentPadding: EdgeInsets.zero, leading: const Icon(Icons.insert_drive_file_outlined),
-                    title: Text(e.value.name, overflow: TextOverflow.ellipsis),
-                    trailing: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => setDialogState(() => pickedFiles.removeAt(e.key))),
-                  )),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.insert_drive_file_outlined),
+                        title:
+                            Text(e.value.name, overflow: TextOverflow.ellipsis),
+                        trailing: IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => setDialogState(
+                                () => pickedFiles.removeAt(e.key))),
+                      )),
               ],
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const T('Cancel')),
             FilledButton(
               onPressed: () async {
-                if (controller.text.trim().isEmpty && pickedFiles.isEmpty) return;
+                if (controller.text.trim().isEmpty && pickedFiles.isEmpty)
+                  return;
                 try {
-                  final comment = await ref.read(repoProvider).addTaskComment(widget.taskId, controller.text);
+                  final comment = await ref
+                      .read(repoProvider)
+                      .addTaskComment(widget.taskId, controller.text);
                   for (final file in pickedFiles) {
                     if (file.bytes != null) {
                       await ref.read(repoProvider).uploadAttachment(
-                        taskCommentId: comment.id, fileName: file.name, bytes: file.bytes!, mimeType: _mimeFor(file.extension ?? ''),
-                      );
+                            taskCommentId: comment.id,
+                            fileName: file.name,
+                            bytes: file.bytes!,
+                            mimeType: _mimeFor(file.extension ?? ''),
+                          );
                     }
                   }
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                   ref.invalidate(taskCommentsProvider(widget.taskId));
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                  if (mounted)
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('$e')));
                 }
               },
               child: const T('Send'),
@@ -1676,18 +2476,37 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
 
     controller.dispose();
   }
-
 }
-
 
 class _SectionLoading extends StatelessWidget {
   const _SectionLoading();
-  @override Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(children: [const LinearProgressIndicator(), const SizedBox(height: 12), Text(tr('Loading...'))])));
+  @override
+  Widget build(BuildContext context) => Card(
+      child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(children: [
+            const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            Text(tr('Loading...'))
+          ])));
 }
 
 class _EmptyInline extends StatelessWidget {
   final IconData icon;
   final String text;
   const _EmptyInline({required this.icon, required this.text});
-  @override Widget build(BuildContext context) => Container(width: double.infinity, padding: const EdgeInsets.all(22), decoration: BoxDecoration(color: HamaColors.surface, borderRadius: BorderRadius.circular(16)), child: Column(children: [Icon(icon, size: 34, color: HamaColors.muted), const SizedBox(height: 8), T(text, textAlign: TextAlign.center, style: const TextStyle(color: HamaColors.muted, fontWeight: FontWeight.w600))]));
+  @override
+  Widget build(BuildContext context) => Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+          color: HamaColors.surface, borderRadius: BorderRadius.circular(16)),
+      child: Column(children: [
+        Icon(icon, size: 34, color: HamaColors.muted),
+        const SizedBox(height: 8),
+        T(text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: HamaColors.muted, fontWeight: FontWeight.w600))
+      ]));
 }
