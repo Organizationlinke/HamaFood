@@ -86,14 +86,14 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(children: [
-                    _filter('not_started', 'Not Started', Icons.radio_button_unchecked_rounded),
-                    _filter('in_progress', 'In Progress', Icons.play_circle_outline_rounded),
-                    _filter('ready_for_completion', 'Ready for Completion', Icons.fact_check_outlined),
-                    _filter('awaiting_approval', 'Awaiting Approval', Icons.verified_outlined),
-                    _filter('overdue', 'Overdue', Icons.warning_amber_rounded),
-                    _filter('completed', 'Completed', Icons.check_circle_outline_rounded),
-                    _filter('cancelled', 'Cancelled', Icons.cancel_outlined),
-                    _filter('all', 'All', Icons.grid_view_rounded),
+                    _filter('not_started', 'Not Started', Icons.radio_button_unchecked_rounded, tasks),
+                    _filter('in_progress', 'In Progress', Icons.play_circle_outline_rounded, tasks),
+                    _filter('ready_for_completion', 'Ready for Completion', Icons.fact_check_outlined, tasks),
+                    _filter('awaiting_approval', 'Awaiting Approval', Icons.verified_outlined, tasks),
+                    _filter('overdue', 'Overdue', Icons.warning_amber_rounded, tasks),
+                    _filter('completed', 'Completed', Icons.check_circle_outline_rounded, tasks),
+                    _filter('cancelled', 'Cancelled', Icons.cancel_outlined, tasks),
+                    _filter('all', 'All', Icons.grid_view_rounded, tasks),
                   ]),
                 ),
               ),
@@ -163,13 +163,14 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     );
   }
 
-  Widget _filter(String value, String label, IconData icon) {
+  Widget _filter(String value, String label, IconData icon, List<Task> tasks) {
+    final count = value == 'all' ? tasks.length : tasks.where((t) => t.effectiveStatus == value).length;
     final selected = status == value;
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 6),
       child: ChoiceChip(
         avatar: Icon(icon, size: 17, color: selected ? HamaColors.teal : HamaColors.muted),
-        label: T(label, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
+        label: Row(mainAxisSize: MainAxisSize.min, children: [T(label, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w600)), const SizedBox(width: 5), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: selected ? HamaColors.teal : HamaColors.surface, borderRadius: BorderRadius.circular(10)), child: Text('$count', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: selected ? HamaColors.teal : HamaColors.muted)))],),
         selected: selected,
         selectedColor: HamaColors.teal.withOpacity(.12),
         backgroundColor: Colors.white,
@@ -299,10 +300,15 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                       setDialogState(() => evidence = value);
                     },
                   ),
-                  SwitchListTile(
-                    value: confirmation,
-                    title: const T('Admin approval required'),
-                    onChanged: null,
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    decoration: BoxDecoration(color: HamaColors.teal.withOpacity(.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: HamaColors.teal.withOpacity(.22))),
+                    child: const ListTile(
+                      leading: Icon(Icons.verified_rounded, color: HamaColors.teal),
+                      title: T('Admin approval required', style: TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: T('Required for every task before final completion'),
+                      trailing: Icon(Icons.check_circle_rounded, color: HamaColors.teal),
+                    ),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,

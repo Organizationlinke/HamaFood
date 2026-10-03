@@ -16,3 +16,7 @@ final taskFollowerNotesProvider = FutureProvider.family<List<TaskFollowerNote>, 
 final messageCommentsProvider = FutureProvider.family<List<MessageComment>, String>((ref, id) => ref.watch(repoProvider).messageComments(id));
 final messageRecipientsProvider = FutureProvider.family<List<Profile>, String>((ref, id) => ref.watch(repoProvider).messageRecipients(id));
 final languageProvider = StateProvider<Locale>((ref) => AppI18n.locale);
+
+final taskUnreadCommentsProvider = FutureProvider.family<int, String>((ref, id) => ref.watch(repoProvider).unreadTaskCommentsCount(id));
+final messageUnreadCommentsCountsProvider = FutureProvider<Map<String, int>>((ref) => ref.watch(repoProvider).unreadMessageCommentsCounts());
+final unreadMessageConversationsProvider = FutureProvider<int>((ref) => ref.watch(repoProvider).unreadMessageConversationsCount());

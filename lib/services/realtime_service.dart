@@ -67,6 +67,21 @@ class HamaRealtime {
         .subscribe();
   }
 
+  static RealtimeChannel messageCommentsForUser({
+    required String userId,
+    required void Function() onChange,
+  }) {
+    return supabase
+        .channel('hama-message-comments-unread-$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'message_comments',
+          callback: (_) => onChange(),
+        )
+        .subscribe();
+  }
+
   static RealtimeChannel messagesForUser({
     required String userId,
     required void Function() onChange,

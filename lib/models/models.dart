@@ -79,6 +79,7 @@ class Task {
   final int? score;
   final String? evalComment;
   final DateTime? completionRequestedAt;
+  final String? completionProofNote;
   final DateTime? followerReviewedAt;
   final String? followerReviewedBy;
   final DateTime? completedAt;
@@ -112,6 +113,7 @@ class Task {
     this.score,
     this.evalComment,
     this.completionRequestedAt,
+    this.completionProofNote,
     this.followerReviewedAt,
     this.followerReviewedBy,
     this.completedAt,
@@ -155,6 +157,7 @@ class Task {
         score: _int(m['score']),
         evalComment: m['eval_comment']?.toString(),
         completionRequestedAt: _date(m['completion_requested_at']),
+        completionProofNote: m['completion_proof_note']?.toString(),
         followerReviewedAt: _date(m['follower_reviewed_at']),
         followerReviewedBy: m['follower_reviewed_by']?.toString(),
         completedAt: _date(m['completed_at']),

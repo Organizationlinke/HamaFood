@@ -600,6 +600,7 @@ class AppRepository {
 
   Future<MessageItem> messageById(String id) async {
     await markMessageSeen(id);
+    await markMessageCommentsRead(id);
     final row = await _db.rpc(
       'get_message_detail',
       params: {'p_message_id': id},
@@ -698,6 +699,35 @@ class AppRepository {
     }).toList();
   }
 
+  Future<int> unreadTaskCommentsCount(String taskId) async {
+    final row = await _db.rpc('get_unread_task_comment_count', params: {'p_task_id': taskId});
+    return int.tryParse(row.toString()) ?? 0;
+  }
+
+  Future<void> markTaskCommentsRead(String taskId) async {
+    await _db.rpc('mark_task_comments_read', params: {'p_task_id': taskId});
+  }
+
+  Future<Map<String, int>> unreadMessageCommentsCounts() async {
+    final rows = await _db.rpc('get_unread_message_comment_counts');
+    final result = <String, int>{};
+    for (final raw in (rows as List)) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      final id = m['message_id']?.toString();
+      if (id != null && id.isNotEmpty) result[id] = int.tryParse(m['unread_count'].toString()) ?? 0;
+    }
+    return result;
+  }
+
+  Future<int> unreadMessageConversationsCount() async {
+    final row = await _db.rpc('get_unread_message_conversations_count');
+    return int.tryParse(row.toString()) ?? 0;
+  }
+
+  Future<void> markMessageCommentsRead(String messageId) async {
+    await _db.rpc('mark_message_comments_read', params: {'p_message_id': messageId});
+  }
+
   Future<String> addMessageComment(
     String messageId,
     String content,
@@ -769,6 +799,12 @@ class AppRepository {
     }
     final allowed = await hasPermission('attachments.upload');
     if (!allowed) throw const AuthException('Attachment upload permission required');
+    if (dailyUpdateId != null) {
+      final row = await _db.from('task_daily_updates').select('attachments_locked').eq('id', dailyUpdateId).maybeSingle();
+      if (row == null || row['attachments_locked'] == true) {
+        throw const AuthException('Attachments are locked for this saved work log');
+      }
+    }
     final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
     final path = '$_uid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
     await _db.storage.from('attachments').uploadBinary(
@@ -795,6 +831,10 @@ class AppRepository {
       try { await _db.storage.from('attachments').remove([path]); } catch (_) {}
       rethrow;
     }
+  }
+
+  Future<void> finalizeDailyUpdateAttachments(String dailyUpdateId) async {
+    await _db.rpc('finalize_daily_update_attachments', params: {'p_daily_update_id': dailyUpdateId});
   }
 
   Future<String> attachmentUrl(AttachmentItem item) async {

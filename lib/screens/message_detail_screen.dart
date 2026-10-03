@@ -53,6 +53,8 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
     });
     await _messageFuture;
     ref.invalidate(messageCommentsProvider(widget.messageId));
+    ref.invalidate(messageUnreadCommentsCountsProvider);
+    ref.invalidate(unreadMessageConversationsProvider);
   }
 
   void _startRealtime() {
@@ -62,6 +64,8 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       onChange: () {
         if (!mounted) return;
         ref.invalidate(messageCommentsProvider(widget.messageId));
+      ref.invalidate(messageUnreadCommentsCountsProvider);
+      ref.invalidate(unreadMessageConversationsProvider);
       },
     );
   }
@@ -365,6 +369,8 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       _composerFiles.clear();
       _composerUploaded.clear();
       ref.invalidate(messageCommentsProvider(widget.messageId));
+      ref.invalidate(messageUnreadCommentsCountsProvider);
+      ref.invalidate(unreadMessageConversationsProvider);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     } finally {
@@ -457,6 +463,8 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                 for (final file in files) { if (file.bytes != null) await ref.read(repoProvider).uploadAttachment(messageCommentId: commentId, fileName: file.name, bytes: file.bytes!, mimeType: _mimeFor(file.extension ?? '')); }
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
                 ref.invalidate(messageCommentsProvider(widget.messageId));
+      ref.invalidate(messageUnreadCommentsCountsProvider);
+      ref.invalidate(unreadMessageConversationsProvider);
               } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); }
             }, child: const T('Send')),
           ],

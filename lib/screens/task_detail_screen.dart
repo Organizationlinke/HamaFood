@@ -66,6 +66,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       onChange: () {
         if (!mounted) return;
         ref.invalidate(taskCommentsProvider(widget.taskId));
+        ref.invalidate(taskUnreadCommentsProvider(widget.taskId));
       },
     );
     _followerNotesChannel = HamaRealtime.taskFollowerNotes(
@@ -121,6 +122,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
           final task = snapshot.data!;
           final profile = ref.watch(profileProvider).valueOrNull;
           final comments = ref.watch(taskCommentsProvider(widget.taskId));
+          final unreadChatCount = ref.watch(taskUnreadCommentsProvider(widget.taskId)).maybeWhen(data: (n) => n, orElse: () => 0);
 
           return FutureBuilder<List<TaskStage>>(
             future: _stagesFuture,
@@ -135,7 +137,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               if (showProgress) { tabs.add(Tab(text: tr('Progress'))); views.add(_progressTab(task, profile)); }
               if (showStages) { tabs.add(Tab(text: tr('Stages'))); views.add(_stagesTab(task, profile)); }
               tabs.add(Tab(text: tr('Daily Work Log'))); views.add(_dailyTab(task));
-              tabs.add(Tab(text: tr('Chat'))); views.add(_chatTab(comments, task));
+              tabs.add(Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Text(tr('Chat')), if (unreadChatCount > 0) ...[const SizedBox(width: 6), Container(width: 22, height: 22, alignment: Alignment.center, decoration: const BoxDecoration(color: HamaColors.red, shape: BoxShape.circle), child: Text('$unreadChatCount', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)))]]))); views.add(_chatTab(comments, task));
 
               return DefaultTabController(
                 length: tabs.length,
@@ -307,6 +309,20 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               ),
             ),
           ),
+          if (task.completionProofNote?.isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Card(
+              color: HamaColors.teal.withOpacity(.06),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [const Icon(Icons.fact_check_rounded, color: HamaColors.teal), const SizedBox(width: 8), const Expanded(child: T('Completion proof note', style: TextStyle(fontWeight: FontWeight.w900)))]),
+                  const SizedBox(height: 8),
+                  Text(task.completionProofNote!),
+                ]),
+              ),
+            ),
+          ],
           if (task.description?.isNotEmpty == true) ...[
             const SizedBox(height: 8),
             Card(
@@ -839,6 +855,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       p != null &&
       (p.isGm || p.isManager || task.responsibleId == p.id);
 
+  bool _canWriteDailyLog(Task task, Profile? p) =>
+      task.status == 'in_progress' &&
+      p != null &&
+      (p.isGm || p.isManager || task.responsibleId == p.id || task.followerId == p.id);
+
   bool _isFollower(Task task, Profile? p) =>
       p != null && task.followerId == p.id && !p.isGm && !p.isManager;
 
@@ -966,7 +987,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
         return _proCard(
           icon: Icons.calendar_month_rounded,
           title: 'Daily Work Log',
-          trailing: _canWriteProgress(task, profile) ? IconButton(onPressed: () => _addDailyUpdate(task, null), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily work')) : null,
+          trailing: _canWriteDailyLog(task, profile) ? IconButton(onPressed: () => _addDailyUpdate(task, null), icon: const Icon(Icons.add_circle_outline_rounded), tooltip: tr('Add daily work')) : null,
           child: grouped.isEmpty
               ? const _EmptyInline(icon: Icons.event_note_outlined, text: 'No daily work recorded yet.')
               : Column(children: grouped.entries.map((entry) {
@@ -1194,6 +1215,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                       );
                     }
                   }
+                  await ref.read(repoProvider).finalizeDailyUpdateAttachments(update.id);
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                   setState(() {});
                 } catch (e) {
@@ -1217,18 +1239,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       builder: (context, snap) {
         final items = snap.data ?? const <AttachmentItem>[];
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Text(tr('Attachments'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: HamaColors.muted)), const Spacer(), if (!_taskIsClosed(task) && _can('attachments.upload')) IconButton(visualDensity: VisualDensity.compact, onPressed: () => _addDailyAttachment(update), icon: const Icon(Icons.attach_file_rounded, size: 18))]),
+          Row(children: [Text(tr('Attachments'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: HamaColors.muted))]),
           if (items.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: items.map((a) => ActionChip(avatar: const Icon(Icons.insert_drive_file_outlined, size: 16), label: Text(a.fileName, overflow: TextOverflow.ellipsis), onPressed: () async { final url = await ref.read(repoProvider).attachmentUrl(a); await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'); })).toList()),
         ]);
       },
     );
-  }
-
-  Future<void> _addDailyAttachment(TaskDailyUpdate update) async {
-    final result = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true, type: FileType.custom, allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp']);
-    if (result == null) return;
-    for (final file in result.files) { if (file.bytes != null) await ref.read(repoProvider).uploadAttachment(dailyUpdateId: update.id, fileName: file.name, bytes: file.bytes!, mimeType: _mimeFor(file.extension ?? '')); }
-    if (mounted) setState(() {});
   }
 
   Widget _attachmentsCard(Task task) {

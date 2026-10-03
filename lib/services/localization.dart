@@ -120,6 +120,8 @@ class AppI18n {
     'Evidence required': 'إثبات الإنجاز مطلوب',
     'Manager confirmation before completion': 'تأكيد المدير قبل الإكمال',
     'Admin approval required': 'اعتماد المدير العام مطلوب',
+    'Required for every task before final completion': 'مطلوب لكل مهمة قبل الإكمال النهائي',
+    'Completion proof note': 'ملاحظة إثبات الإنجاز',
     'Score 1-10': 'التقييم من 1 إلى 10',
     'Evaluation comment': 'تعليق التقييم',
     'Confirm completion': 'تأكيد الإكمال',

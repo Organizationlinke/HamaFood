@@ -21,12 +21,17 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   String? selectedId;
   Future<List<Profile>>? recipientsFuture;
   RealtimeChannel? _realtimeChannel;
+  RealtimeChannel? _messageCommentsChannel;
 
   @override
   void dispose() {
     final channel = _realtimeChannel;
     if (channel != null) {
       supabase.removeChannel(channel);
+    }
+    final commentsChannel = _messageCommentsChannel;
+    if (commentsChannel != null) {
+      supabase.removeChannel(commentsChannel);
     }
     super.dispose();
   }
@@ -41,17 +46,36 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       onChange: () {
         if (!mounted) return;
         ref.invalidate(messagesProvider);
+        ref.invalidate(messageUnreadCommentsCountsProvider);
+        ref.invalidate(unreadMessageConversationsProvider);
         ref.invalidate(notificationsProvider);
         ref.invalidate(dashboardProvider);
       },
     );
+    // Replies can arrive without changing the parent message row.
+    _messageCommentsChannel = HamaRealtime.messageCommentsForUser(
+      userId: userId,
+      onChange: () {
+        if (!mounted) return;
+        ref.invalidate(messageUnreadCommentsCountsProvider);
+        ref.invalidate(unreadMessageConversationsProvider);
+      },
+    );
   }
 
-  void _select(String id) {
+  Future<void> _select(String id, {bool markRead = true}) async {
     setState(() {
       selectedId = id;
       recipientsFuture = ref.read(repoProvider).messageRecipients(id);
     });
+    if (!markRead) return;
+    try {
+      await ref.read(repoProvider).markMessageSeen(id);
+      await ref.read(repoProvider).markMessageCommentsRead(id);
+      ref.invalidate(messagesProvider);
+      ref.invalidate(messageUnreadCommentsCountsProvider);
+      ref.invalidate(unreadMessageConversationsProvider);
+    } catch (_) {}
   }
 
   @override
@@ -70,13 +94,14 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
         loading: () => const LoadingView(),
         error: (e, _) => ErrorView(e, retry: () => ref.invalidate(messagesProvider)),
         data: (items) {
+          final unreadCounts = ref.watch(messageUnreadCommentsCountsProvider).maybeWhen(data: (m) => m, orElse: () => const <String, int>{});
           if (items.isEmpty) return const EmptyView('No messages', icon: Icons.chat_bubble_outline);
           final active = selectedId == null || !items.any((m) => m.id == selectedId)
               ? items.first
               : items.firstWhere((m) => m.id == selectedId);
           if (selectedId == null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _select(active.id);
+              if (mounted) _select(active.id, markRead: false);
             });
           }
 
@@ -104,7 +129,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
                           itemCount: items.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _messageTile(items[i]),
+                          itemBuilder: (_, i) => _messageTile(items[i], unreadCounts[items[i].id] ?? 0),
                         ),
                       );
                     }
@@ -132,7 +157,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                                 padding: const EdgeInsets.all(16),
                                 itemCount: items.length,
                                 separatorBuilder: (_, __) => const SizedBox(height: 8),
-                                itemBuilder: (_, i) => _messageTile(items[i]),
+                                itemBuilder: (_, i) => _messageTile(items[i], unreadCounts[items[i].id] ?? 0),
                               ),
                             ),
                           ),
@@ -151,7 +176,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
     );
   }
 
-  Widget _messageTile(MessageItem message) {
+  Widget _messageTile(MessageItem message, int unreadReplies) {
     final selected = selectedId == message.id;
     final icon = message.messageType == 'task'
         ? Icons.task_alt
@@ -176,9 +201,11 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: message.seenByMe
-            ? const Icon(Icons.done_all)
-            : const Icon(Icons.mark_unread_chat_alt_outlined),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (unreadReplies > 0) Container(width: 24, height: 24, alignment: Alignment.center, decoration: const BoxDecoration(color: HamaColors.red, shape: BoxShape.circle), child: Text('$unreadReplies', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900))),
+          const SizedBox(width: 8),
+          message.seenByMe ? const Icon(Icons.done_all) : const Icon(Icons.mark_unread_chat_alt_outlined),
+        ]),
       ),
     );
   }
@@ -256,7 +283,6 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
     final users = await ref.read(usersProvider.future);
     if (!mounted) return;
     final content = TextEditingController();
-    String type = 'information';
     String audience = 'everyone';
     final selected = <String>{};
 
@@ -269,17 +295,6 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
             width: 760,
             child: SingleChildScrollView(
               child: Column(children: [
-                DropdownButtonFormField<String>(
-                  value: type,
-                  decoration: InputDecoration(labelText: tr('Type')),
-                  items: const [
-                    DropdownMenuItem(value: 'information', child: T('Information')),
-                    DropdownMenuItem(value: 'action_required', child: T('Action Required')),
-                    DropdownMenuItem(value: 'task', child: T('Task')),
-                  ],
-                  onChanged: (v) => setDialogState(() => type = v ?? type),
-                ),
-                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: audience,
                   decoration: InputDecoration(labelText: tr('Recipients')),
@@ -405,7 +420,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                 try {
                   await ref.read(repoProvider).createMessage(
                     content: content.text,
-                    messageType: type,
+                    messageType: 'information',
                     audienceType: audience,
                     recipientIds: selected.toList(),
                   );
