@@ -415,7 +415,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
               ),
             ),
           ),
-       
+        const SizedBox(height: 12),
           _attachmentsCard(task),
           const SizedBox(height: 12),
           Card(
