@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../services/localization.dart';
+import '../services/attachment_opener.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import '../theme.dart';
@@ -288,7 +288,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                               fontWeight: FontWeight.w600)),
                     ]),
               ),
-              StatusChip(task.effectiveStatus),
+              StatusChip(task.status),
+              if (task.isOverdue) const Chip(avatar: Icon(Icons.warning_amber_rounded, size: 15), label: Text('متأخرة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
               PriorityChip(task.priority),
             ],
           ),
@@ -427,11 +428,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                 children: [
                   _kv(
                       'Status',
-                      tr(task.effectiveStatus == 'overdue'
-                          ? 'Overdue'
-                          : _statusLabel(task.status))),
+                      tr(_statusLabel(task.status))),
                   _kv('Deadline',
                       task.deadline == null ? '-' : shortDate(task.deadline!)),
+                  if (task.isOverdue) _kv('Task timing', tr('Overdue')), 
                   _kv('Evidence required',
                       task.evidenceRequired ? tr('Yes') : tr('No')),
                   _kv('Admin approval',
@@ -1013,9 +1013,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                     avatar: const Icon(Icons.attach_file_rounded, size: 15),
                     label: Text(a.fileName, overflow: TextOverflow.ellipsis),
                     onPressed: () async {
-                      final url = await ref.read(repoProvider).attachmentUrl(a);
-                      await launchUrl(Uri.parse(url),
-                          webOnlyWindowName: '_blank');
+                      final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(a));
+                      if (!ok && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')));
+                      }
                     },
                   ))
               .toList(),
@@ -1747,10 +1748,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                         label:
                             Text(a.fileName, overflow: TextOverflow.ellipsis),
                         onPressed: () async {
-                          final url =
-                              await ref.read(repoProvider).attachmentUrl(a);
-                          await launchUrl(Uri.parse(url),
-                              webOnlyWindowName: '_blank');
+                          final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(a));
+                          if (!ok && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')));
+                          }
                         }))
                     .toList()),
         ]);
@@ -1818,8 +1819,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ]),
       trailing: IconButton(
           onPressed: () async {
-            final url = await ref.read(repoProvider).attachmentUrl(item);
-            await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank');
+            final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(item));
+            if (!ok && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')));
+            }
           },
           icon: const Icon(Icons.open_in_new_rounded)),
     );

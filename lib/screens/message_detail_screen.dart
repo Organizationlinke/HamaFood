@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../services/localization.dart';
+import '../services/attachment_opener.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import '../theme.dart';
@@ -400,7 +400,7 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                 leading: const CircleAvatar(child: Icon(Icons.insert_drive_file_outlined)),
                 title: Text(item.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: Row(children: [UserAvatar(user: AvatarData(item.uploaderName, item.uploaderAvatarUrl), radius: 13), const SizedBox(width: 6), Expanded(child: Text('${item.uploaderName} • ${item.createdAt == null ? '-' : dateTimeText(item.createdAt!)}', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: HamaColors.muted)))]),
-                trailing: IconButton(onPressed: () async { final url = await ref.read(repoProvider).attachmentUrl(item); await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'); }, icon: const Icon(Icons.open_in_new_rounded)),
+                trailing: IconButton(onPressed: () async { final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(item)); if (!ok && mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.'))); } }, icon: const Icon(Icons.open_in_new_rounded)),
               )).toList()),
             ]),
           ),
@@ -478,7 +478,7 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
     return FutureBuilder<List<AttachmentItem>>(future: ref.read(repoProvider).attachmentsForMessageComment(commentId), builder: (context, snap) {
       final items = snap.data ?? const <AttachmentItem>[];
       if (items.isEmpty) return const SizedBox.shrink();
-      return Wrap(spacing: 6, runSpacing: 6, children: items.map((a) => ActionChip(avatar: const Icon(Icons.insert_drive_file_outlined, size: 16), label: Text(a.fileName, overflow: TextOverflow.ellipsis), onPressed: () async { final url = await ref.read(repoProvider).attachmentUrl(a); await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank'); })).toList());
+      return Wrap(spacing: 6, runSpacing: 6, children: items.map((a) => ActionChip(avatar: const Icon(Icons.insert_drive_file_outlined, size: 16), label: Text(a.fileName, overflow: TextOverflow.ellipsis), onPressed: () async { final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(a)); if (!ok && mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.'))); } })).toList());
     });
   }
 

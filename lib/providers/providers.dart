@@ -10,6 +10,7 @@ final usersProvider = FutureProvider<List<Profile>>((ref) => ref.watch(repoProvi
 final dashboardProvider = FutureProvider<DashboardStats>((ref) => ref.watch(repoProvider).dashboardStats());
 final tasksProvider = FutureProvider.family<List<Task>, String>((ref, scope) => ref.watch(repoProvider).tasks(scope: scope));
 final messagesProvider = FutureProvider<List<MessageItem>>((ref) => ref.watch(repoProvider).messages());
+final messageStatusCountsProvider = FutureProvider<Map<String, int>>((ref) => ref.watch(repoProvider).messageStatusCounts());
 final notificationsProvider = FutureProvider<List<NotificationItem>>((ref) => ref.watch(repoProvider).notifications());
 final taskCommentsProvider = FutureProvider.family<List<TaskComment>, String>((ref, id) => ref.watch(repoProvider).taskComments(id));
 final taskFollowerNotesProvider = FutureProvider.family<List<TaskFollowerNote>, String>((ref, id) => ref.watch(repoProvider).taskFollowerNotes(id));

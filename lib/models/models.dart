@@ -131,11 +131,11 @@ class Task {
   bool get isDeleted => deletedAt != null || status == 'deleted';
 
   bool get isOverdue {
-    if (isDeleted || status == 'completed' || status == 'cancelled' || status == 'ready_for_completion' || status == 'awaiting_approval') return false;
+    if (isDeleted || status == 'completed' || status == 'cancelled') return false;
     return deadline != null && deadline!.isBefore(DateTime.now());
   }
 
-  String get effectiveStatus => isDeleted ? 'deleted' : (isOverdue ? 'overdue' : status);
+  String get effectiveStatus => isDeleted ? 'deleted' : status;
 
   factory Task.fromMap(Map<String, dynamic> m) => Task(
         id: m['id'].toString(),
@@ -331,6 +331,7 @@ class MessageItem {
   final int recipientCount;
   final int seenCount;
   final bool seenByMe;
+  final String myStatus;
 
   const MessageItem({
     required this.id,
@@ -346,6 +347,7 @@ class MessageItem {
     required this.recipientCount,
     required this.seenCount,
     required this.seenByMe,
+    this.myStatus = 'not_started',
   });
 
   factory MessageItem.fromMap(Map<String, dynamic> m) => MessageItem(
@@ -362,6 +364,7 @@ class MessageItem {
         recipientCount: _int(m['recipient_count']) ?? 0,
         seenCount: _int(m['seen_count']) ?? 0,
         seenByMe: _bool(m['seen_by_me']),
+        myStatus: (m['my_status'] ?? 'not_started').toString(),
       );
 }
 

@@ -186,7 +186,7 @@ class AppRepository {
       myTasks: my.length,
       teamTasks: tasks.length,
       overdueTasks:
-          tasks.where((t) => t.effectiveStatus == 'overdue').length,
+          tasks.where((t) => t.isOverdue).length,
       readyTasks: tasks
           .where((t) => t.effectiveStatus == 'ready_for_completion')
           .length,
@@ -648,6 +648,26 @@ class AppRepository {
     );
   }
 
+  Future<void> setMessageStatus(String messageId, String status) async {
+    await _db.rpc(
+      'set_message_recipient_status',
+      params: {'p_message_id': messageId, 'p_status': status},
+    );
+  }
+
+  Future<Map<String, int>> messageStatusCounts() async {
+    final row = await _db.rpc('get_my_message_status_counts');
+    if (row is List && row.isNotEmpty) {
+      final m = Map<String, dynamic>.from(row.first as Map);
+      return {
+        'not_started': int.tryParse('${m['not_started'] ?? 0}') ?? 0,
+        'in_progress': int.tryParse('${m['in_progress'] ?? 0}') ?? 0,
+        'completed': int.tryParse('${m['completed'] ?? 0}') ?? 0,
+      };
+    }
+    return {'not_started': 0, 'in_progress': 0, 'completed': 0};
+  }
+
   Future<List<Profile>> messageRecipients(String messageId) async {
     final rows = await _db.rpc(
       'get_message_recipients',
@@ -838,7 +858,21 @@ class AppRepository {
   }
 
   Future<String> attachmentUrl(AttachmentItem item) async {
-    return _db.storage.from('attachments').createSignedUrl(item.storagePath, 3600);
+    // Use the database SECURITY DEFINER function so access is evaluated from
+    // the attachment's actual parent (task/message/comment/daily update) and
+    // the signed URL is generated consistently for every client/device.
+    final result = await _db.rpc(
+      'attachment_signed_url',
+      params: {'p_attachment_id': item.id},
+    );
+    final url = result?.toString().trim() ?? '';
+    if (url.isEmpty) {
+      throw PostgrestException(
+        message: 'تعذر إنشاء رابط آمن للمرفق',
+        code: 'ATTACHMENT_URL_EMPTY',
+      );
+    }
+    return url;
   }
 
   Future<void> deleteAttachment(AttachmentItem item) async {

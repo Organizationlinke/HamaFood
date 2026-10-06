@@ -54,7 +54,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
           final byId = {for (final u in users) u.id: u};
           final filtered = status == 'all'
               ? tasks
-              : tasks.where((t) => t.effectiveStatus == status).toList();
+              : status == 'overdue'
+                  ? tasks.where((t) => t.isOverdue).toList()
+                  : tasks.where((t) => t.status == status).toList();
 
           return Column(
             children: [
@@ -123,12 +125,12 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                       Container(
                                         width: 52, height: 52,
                                         decoration: BoxDecoration(gradient: LinearGradient(colors: [HamaColors.teal.withOpacity(.15), HamaColors.navy2.withOpacity(.08)]), borderRadius: BorderRadius.circular(15)),
-                                        child: Icon(task.effectiveStatus == 'overdue' ? Icons.warning_amber_rounded : Icons.task_alt_rounded, color: task.effectiveStatus == 'overdue' ? HamaColors.red : HamaColors.teal),
+                                        child: Icon(task.isOverdue ? Icons.warning_amber_rounded : Icons.task_alt_rounded, color: task.isOverdue ? HamaColors.red : HamaColors.teal),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          Row(children: [Expanded(child: Text(task.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, color: HamaColors.ink))), const SizedBox(width: 8), StatusChip(task.effectiveStatus)]),
+                                          Row(children: [Expanded(child: Text(task.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, color: HamaColors.ink))), const SizedBox(width: 8), StatusChip(task.status), if (task.isOverdue) ...[const SizedBox(width: 6), const Chip(avatar: Icon(Icons.warning_amber_rounded, size: 15), label: Text('متأخرة', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)))] ]),
                                           const SizedBox(height: 6),
                                           Text('${task.code} • ${tr('Deadline')}: ${shortDate(task.deadline)}', style: const TextStyle(fontSize: 12, color: HamaColors.muted)),
                                           const SizedBox(height: 9),
@@ -164,7 +166,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   }
 
   Widget _filter(String value, String label, IconData icon, List<Task> tasks) {
-    final count = value == 'all' ? tasks.length : tasks.where((t) => t.effectiveStatus == value).length;
+    final count = value == 'all' ? tasks.length : value == 'overdue' ? tasks.where((t) => t.isOverdue).length : tasks.where((t) => t.status == value).length;
     final selected = status == value;
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 6),

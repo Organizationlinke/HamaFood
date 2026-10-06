@@ -19,6 +19,7 @@ class MessagesScreen extends ConsumerStatefulWidget {
 
 class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   String? selectedId;
+  String _statusTab = 'not_started';
   Future<List<Profile>>? recipientsFuture;
   RealtimeChannel? _realtimeChannel;
   RealtimeChannel? _messageCommentsChannel;
@@ -46,6 +47,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
       onChange: () {
         if (!mounted) return;
         ref.invalidate(messagesProvider);
+        ref.invalidate(messageStatusCountsProvider);
         ref.invalidate(messageUnreadCommentsCountsProvider);
         ref.invalidate(unreadMessageConversationsProvider);
         ref.invalidate(notificationsProvider);
@@ -61,6 +63,20 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
         ref.invalidate(unreadMessageConversationsProvider);
       },
     );
+  }
+
+  Future<void> _changeStatus(String messageId, String status) async {
+    try {
+      await ref.read(repoProvider).setMessageStatus(messageId, status);
+      if (!mounted) return;
+      ref.invalidate(messagesProvider);
+      ref.invalidate(messageStatusCountsProvider);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   Future<void> _select(String id, {bool markRead = true}) async {
@@ -95,10 +111,13 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
         error: (e, _) => ErrorView(e, retry: () => ref.invalidate(messagesProvider)),
         data: (items) {
           final unreadCounts = ref.watch(messageUnreadCommentsCountsProvider).maybeWhen(data: (m) => m, orElse: () => const <String, int>{});
+          final statusCounts = ref.watch(messageStatusCountsProvider).maybeWhen(data: (m) => m, orElse: () => const <String, int>{});
+          final filtered = items.where((m) => m.myStatus == _statusTab).toList();
+          final activeList = filtered.isNotEmpty ? filtered : items;
           if (items.isEmpty) return const EmptyView('No messages', icon: Icons.chat_bubble_outline);
-          final active = selectedId == null || !items.any((m) => m.id == selectedId)
-              ? items.first
-              : items.firstWhere((m) => m.id == selectedId);
+          final active = selectedId == null || !activeList.any((m) => m.id == selectedId)
+              ? activeList.first
+              : activeList.firstWhere((m) => m.id == selectedId);
           if (selectedId == null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) _select(active.id, markRead: false);
@@ -115,6 +134,10 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                   icon: Icons.forum_rounded,
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: _statusTabs(statusCounts),
+              ),
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -127,9 +150,9 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                         },
                         child: ListView.separated(
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                          itemCount: items.length,
+                          itemCount: filtered.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _messageTile(items[i], unreadCounts[items[i].id] ?? 0),
+                          itemBuilder: (_, i) => _messageTile(filtered[i], unreadCounts[filtered[i].id] ?? 0),
                         ),
                       );
                     }
@@ -155,9 +178,9 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                               },
                               child: ListView.separated(
                                 padding: const EdgeInsets.all(16),
-                                itemCount: items.length,
+                                itemCount: filtered.length,
                                 separatorBuilder: (_, __) => const SizedBox(height: 8),
-                                itemBuilder: (_, i) => _messageTile(items[i], unreadCounts[items[i].id] ?? 0),
+                                itemBuilder: (_, i) => _messageTile(filtered[i], unreadCounts[filtered[i].id] ?? 0),
                               ),
                             ),
                           ),
@@ -173,6 +196,79 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
           );
         },
       ),
+    );
+  }
+
+  Widget _statusTabs(Map<String, int> counts) {
+    final tabs = [
+      ('not_started', 'لم يتم البدء', Icons.radio_button_unchecked),
+      ('in_progress', 'تحت التنفيذ', Icons.pending_actions),
+      ('completed', 'منتهية', Icons.check_circle_outline),
+    ];
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: HamaColors.border),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: tabs.map((tab) {
+          final selected = _statusTab == tab.$1;
+          final count = counts[tab.$1] ?? 0;
+          return Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() {
+                _statusTab = tab.$1;
+                selectedId = null;
+              }),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+                decoration: BoxDecoration(
+                  color: selected ? Theme.of(context).colorScheme.primaryContainer : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(tab.$3, size: 17),
+                    const SizedBox(width: 6),
+                    Flexible(child: Text(tab.$2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: selected ? FontWeight.w900 : FontWeight.w700))),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(color: selected ? Theme.of(context).colorScheme.primary : HamaColors.border, borderRadius: BorderRadius.circular(20)),
+                      child: Text('$count', style: TextStyle(color: selected ? Colors.white : HamaColors.ink, fontSize: 11, fontWeight: FontWeight.w900)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _statusChip(String status) {
+    final label = status == 'not_started' ? 'لم يتم البدء' : status == 'in_progress' ? 'تحت التنفيذ' : 'منتهية';
+    final icon = status == 'not_started' ? Icons.radio_button_unchecked : status == 'in_progress' ? Icons.pending_actions : Icons.check_circle;
+    return Chip(avatar: Icon(icon, size: 15), label: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)));
+  }
+
+  Widget _statusMenu(MessageItem message) {
+    return PopupMenuButton<String>(
+      tooltip: 'حالة الرسالة',
+      initialValue: message.myStatus,
+      onSelected: (value) => _changeStatus(message.id, value),
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'not_started', child: Text('لم يتم البدء')),
+        PopupMenuItem(value: 'in_progress', child: Text('تحت التنفيذ')),
+        PopupMenuItem(value: 'completed', child: Text('منتهية')),
+      ],
+      icon: const Icon(Icons.more_vert),
     );
   }
 
@@ -202,9 +298,11 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          _statusChip(message.myStatus),
           if (unreadReplies > 0) Container(width: 24, height: 24, alignment: Alignment.center, decoration: const BoxDecoration(color: HamaColors.red, shape: BoxShape.circle), child: Text('$unreadReplies', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900))),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           message.seenByMe ? const Icon(Icons.done_all) : const Icon(Icons.mark_unread_chat_alt_outlined),
+          _statusMenu(message),
         ]),
       ),
     );
