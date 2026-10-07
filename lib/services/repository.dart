@@ -858,21 +858,35 @@ class AppRepository {
   }
 
   Future<String> attachmentUrl(AttachmentItem item) async {
-    // Use the database SECURITY DEFINER function so access is evaluated from
-    // the attachment's actual parent (task/message/comment/daily update) and
-    // the signed URL is generated consistently for every client/device.
-    final result = await _db.rpc(
-      'attachment_signed_url',
-      params: {'p_attachment_id': item.id},
-    );
-    final url = result?.toString().trim() ?? '';
-    if (url.isEmpty) {
-      throw PostgrestException(
-        message: 'تعذر إنشاء رابط آمن للمرفق',
-        code: 'ATTACHMENT_URL_EMPTY',
-      );
+    // Keep the original Supabase Storage SDK path as the primary mechanism.
+    // This is the most compatible path across browsers/devices and was already
+    // working in the previous build. If Storage RLS rejects the request, fall
+    // back to the SECURITY DEFINER RPC for users who are allowed to see the
+    // parent message/task.
+    try {
+      final url = await _db.storage
+          .from('attachments')
+          .createSignedUrl(item.storagePath, 3600);
+      if (url.trim().isNotEmpty) return url;
+    } catch (_) {
+      // Try the DB authorization fallback below.
     }
-    return url;
+
+    try {
+      final result = await _db.rpc(
+        'attachment_signed_url',
+        params: {'p_attachment_id': item.id},
+      );
+      final url = result?.toString().trim() ?? '';
+      if (url.isNotEmpty) return url;
+    } catch (_) {
+      // Preserve the original failure below with a clear user-facing error.
+    }
+
+    throw PostgrestException(
+      message: 'تعذر إنشاء رابط آمن للمرفق. قد لا تكون لديك صلاحية الوصول إليه.',
+      code: 'ATTACHMENT_URL_FAILED',
+    );
   }
 
   Future<void> deleteAttachment(AttachmentItem item) async {
