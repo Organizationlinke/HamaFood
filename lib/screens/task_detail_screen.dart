@@ -1013,7 +1013,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                     avatar: const Icon(Icons.attach_file_rounded, size: 15),
                     label: Text(a.fileName, overflow: TextOverflow.ellipsis),
                     onPressed: () async {
-                      final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(a));
+                      // إذا كان المتغير اسمه a:
+final ok = await openAttachment(context, a.fileName, () => ref.read(repoProvider).attachmentUrl(a));
+                      // final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(a));
                       if (!ok && mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')));
                       }
@@ -1748,7 +1750,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
                         label:
                             Text(a.fileName, overflow: TextOverflow.ellipsis),
                         onPressed: () async {
-                          final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(a));
+                          // إذا كان المتغير اسمه a:
+final ok = await openAttachment(context, a.fileName, () => ref.read(repoProvider).attachmentUrl(a));
+                          // final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(a));
                           if (!ok && mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')));
                           }
@@ -1819,7 +1823,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
       ]),
       trailing: IconButton(
           onPressed: () async {
-            final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(item));
+            // إذا كان المتغير اسمه a:
+final ok = await openAttachment(context, item.fileName, () => ref.read(repoProvider).attachmentUrl(item));
+            // final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(item));
             if (!ok && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')));
             }

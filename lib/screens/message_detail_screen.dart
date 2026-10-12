@@ -19,7 +19,8 @@ class MessageDetailScreen extends ConsumerStatefulWidget {
   const MessageDetailScreen({super.key, required this.messageId});
 
   @override
-  ConsumerState<MessageDetailScreen> createState() => _MessageDetailScreenState();
+  ConsumerState<MessageDetailScreen> createState() =>
+      _MessageDetailScreenState();
 }
 
 class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
@@ -64,8 +65,8 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       onChange: () {
         if (!mounted) return;
         ref.invalidate(messageCommentsProvider(widget.messageId));
-      ref.invalidate(messageUnreadCommentsCountsProvider);
-      ref.invalidate(unreadMessageConversationsProvider);
+        ref.invalidate(messageUnreadCommentsCountsProvider);
+        ref.invalidate(unreadMessageConversationsProvider);
       },
     );
   }
@@ -81,19 +82,22 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       body: FutureBuilder<MessageItem>(
         future: _messageFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) return const LoadingView();
+          if (snapshot.connectionState != ConnectionState.done)
+            return const LoadingView();
           if (snapshot.hasError) return ErrorView(snapshot.error!);
 
           final message = snapshot.data!;
           final profile = ref.watch(profileProvider).valueOrNull;
-          final allUsers = ref.watch(usersProvider).valueOrNull ?? const <Profile>[];
+          final allUsers =
+              ref.watch(usersProvider).valueOrNull ?? const <Profile>[];
           final senderProfile = message.createdBy == null
               ? null
               : allUsers.where((u) => u.id == message.createdBy).isEmpty
                   ? null
                   : allUsers.firstWhere((u) => u.id == message.createdBy);
           final comments = ref.watch(messageCommentsProvider(widget.messageId));
-          final recipients = ref.watch(messageRecipientsProvider(widget.messageId));
+          final recipients =
+              ref.watch(messageRecipientsProvider(widget.messageId));
 
           return Column(
             children: [
@@ -110,28 +114,37 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                             Row(
                               children: [
                                 UserAvatar(
-                                  user: senderProfile ?? AvatarData(message.senderName, message.senderAvatarUrl),
+                                  user: senderProfile ??
+                                      AvatarData(message.senderName,
+                                          message.senderAvatarUrl),
                                   radius: 24,
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
                                     message.senderName,
-                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold),
                                   ),
                                 ),
-                                Text(dateTimeText(message.createdAt), style: const TextStyle(fontSize: 12, color: HamaColors.muted)),
+                                Text(dateTimeText(message.createdAt),
+                                    style: const TextStyle(
+                                        fontSize: 12, color: HamaColors.muted)),
                               ],
                             ),
                             const SizedBox(height: 8),
-                            Text(message.content, style: const TextStyle(fontSize: 17)),
+                            Text(message.content,
+                                style: const TextStyle(fontSize: 17)),
                             const SizedBox(height: 10),
-                            Text('${tr('Seen')}: ${message.seenCount}/${message.recipientCount}'),
+                            Text(
+                                '${tr('Seen')}: ${message.seenCount}/${message.recipientCount}'),
                             if (message.taskId != null)
                               Padding(
                                 padding: const EdgeInsets.only(top: 10),
                                 child: FilledButton(
-                                  onPressed: () => context.go('/tasks/${message.taskId}'),
+                                  onPressed: () =>
+                                      context.go('/tasks/${message.taskId}'),
                                   child: const T('Open Task'),
                                 ),
                               ),
@@ -154,7 +167,9 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const T('Recipients', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            const T('Recipients',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
                             recipients.when(
                               loading: () => const LinearProgressIndicator(),
@@ -162,28 +177,43 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                               data: (users) => Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
-                                children: users.map((u) => InputChip(
-                                  avatar: UserAvatar(user: u, radius: 15),
-                                  label: Text(u.fullName),
-                                  onPressed: () => showDialog<void>(
-                                    context: context,
-                                    builder: (_) => Dialog(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(18),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            UserAvatar(user: u, radius: 110),
-                                            const SizedBox(height: 10),
-                                            Text(u.fullName, style: const TextStyle(fontWeight: FontWeight.w800)),
-                                            const SizedBox(height: 10),
-                                            TextButton(onPressed: () => Navigator.pop(context), child: const T('Close')),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                )).toList(),
+                                children: users
+                                    .map((u) => InputChip(
+                                          avatar:
+                                              UserAvatar(user: u, radius: 15),
+                                          label: Text(u.fullName),
+                                          onPressed: () => showDialog<void>(
+                                            context: context,
+                                            builder: (_) => Dialog(
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(18),
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    UserAvatar(
+                                                        user: u, radius: 110),
+                                                    const SizedBox(height: 10),
+                                                    Text(u.fullName,
+                                                        style: const TextStyle(
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .w800)),
+                                                    const SizedBox(height: 10),
+                                                    TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                                context),
+                                                        child:
+                                                            const T('Close')),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ))
+                                    .toList(),
                               ),
                             ),
                           ],
@@ -201,17 +231,21 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                             if (items.isEmpty) return const _ReplyEmpty();
                             final me = profile?.id;
                             return Column(
-                              children: items.map((comment) => Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: HamaChatBubble(
-                                  isMine: comment.createdBy == me,
-                                  name: comment.creatorName,
-                                  avatarUrl: comment.creatorAvatarUrl,
-                                  content: comment.content,
-                                  createdAt: comment.createdAt,
-                                  attachments: _commentAttachments(comment.id),
-                                ),
-                              )).toList(),
+                              children: items
+                                  .map((comment) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 8),
+                                        child: HamaChatBubble(
+                                          isMine: comment.createdBy == me,
+                                          name: comment.creatorName,
+                                          avatarUrl: comment.creatorAvatarUrl,
+                                          content: comment.content,
+                                          createdAt: comment.createdAt,
+                                          attachments:
+                                              _commentAttachments(comment.id),
+                                        ),
+                                      ))
+                                  .toList(),
                             );
                           },
                         ),
@@ -227,7 +261,6 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       ),
     );
   }
-
 
   Widget _messageComposer() {
     return SafeArea(
@@ -264,7 +297,8 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 11),
                       ),
                     ),
                   ),
@@ -273,7 +307,10 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                     onPressed: _sending ? null : _sendComposer,
                     tooltip: tr('Send'),
                     icon: _sending
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.send_rounded),
                   ),
                 ],
@@ -284,7 +321,6 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       ),
     );
   }
-
 
   Widget _composerFilesPreview() {
     return Container(
@@ -308,14 +344,30 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 4),
             leading: CircleAvatar(
               radius: 17,
-              child: Icon(uploaded ? Icons.check_rounded : Icons.insert_drive_file_outlined, size: 18),
+              child: Icon(
+                  uploaded
+                      ? Icons.check_rounded
+                      : Icons.insert_drive_file_outlined,
+                  size: 18),
             ),
-            title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text(uploaded ? tr('Uploaded') : (_sending ? tr('Uploading...') : '${_fileSize(file.size)} • ${tr('Ready to send')}')),
+            title: Text(file.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(uploaded
+                ? tr('Uploaded')
+                : (_sending
+                    ? tr('Uploading...')
+                    : '${_fileSize(file.size)} • ${tr('Ready to send')}')),
             trailing: _sending && !uploaded
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
                 : IconButton(
-                    onPressed: _sending ? null : () => setState(() => _composerFiles.removeAt(index)),
+                    onPressed: _sending
+                        ? null
+                        : () => setState(() => _composerFiles.removeAt(index)),
                     icon: const Icon(Icons.close_rounded, size: 19),
                   ),
           );
@@ -335,7 +387,17 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       withData: true,
       allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp'],
+      allowedExtensions: [
+        'doc',
+        'docx',
+        'xls',
+        'xlsx',
+        'pdf',
+        'jpg',
+        'jpeg',
+        'png',
+        'webp'
+      ],
     );
     if (result != null && mounted) {
       setState(() {
@@ -352,15 +414,17 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
     if (text.isEmpty && _composerFiles.isEmpty) return;
     setState(() => _sending = true);
     try {
-      final commentId = await ref.read(repoProvider).addMessageComment(widget.messageId, text);
+      final commentId = await ref
+          .read(repoProvider)
+          .addMessageComment(widget.messageId, text);
       for (final file in List<PlatformFile>.from(_composerFiles)) {
         if (file.bytes != null) {
           await ref.read(repoProvider).uploadAttachment(
-            messageCommentId: commentId,
-            fileName: file.name,
-            bytes: file.bytes!,
-            mimeType: _mimeFor(file.extension ?? ''),
-          );
+                messageCommentId: commentId,
+                fileName: file.name,
+                bytes: file.bytes!,
+                mimeType: _mimeFor(file.extension ?? ''),
+              );
           if (mounted) setState(() => _composerUploaded.add(file.name));
         }
       }
@@ -372,12 +436,13 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       ref.invalidate(messageUnreadCommentsCountsProvider);
       ref.invalidate(unreadMessageConversationsProvider);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
   }
-
 
   Widget _attachmentsCard() {
     return FutureBuilder<List<AttachmentItem>>(
@@ -387,21 +452,72 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const Expanded(child: T('Attachments', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-                IconButton(onPressed: _addAttachment, icon: const Icon(Icons.attach_file_rounded), tooltip: tr('Add attachment')),
+                const Expanded(
+                    child: T('Attachments',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold))),
+                IconButton(
+                    onPressed: _addAttachment,
+                    icon: const Icon(Icons.attach_file_rounded),
+                    tooltip: tr('Add attachment')),
               ]),
               const SizedBox(height: 8),
-              if (snap.connectionState == ConnectionState.waiting) const LinearProgressIndicator()
-              else if (items.isEmpty) const _ReplyEmpty()
-              else Column(children: items.map((item) => ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                leading: const CircleAvatar(child: Icon(Icons.insert_drive_file_outlined)),
-                title: Text(item.fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Row(children: [UserAvatar(user: AvatarData(item.uploaderName, item.uploaderAvatarUrl), radius: 13), const SizedBox(width: 6), Expanded(child: Text('${item.uploaderName} • ${item.createdAt == null ? '-' : dateTimeText(item.createdAt!)}', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: HamaColors.muted)))]),
-                trailing: IconButton(onPressed: () async { final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(item)); if (!ok && mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.'))); } }, icon: const Icon(Icons.open_in_new_rounded)),
-              )).toList()),
+              if (snap.connectionState == ConnectionState.waiting)
+                const LinearProgressIndicator()
+              else if (items.isEmpty)
+                const _ReplyEmpty()
+              else
+                Column(
+                    children: items
+                        .map((item) => ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 2),
+                              leading: const CircleAvatar(
+                                  child:
+                                      Icon(Icons.insert_drive_file_outlined)),
+                              title: Text(item.fileName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800)),
+                              subtitle: Row(children: [
+                                UserAvatar(
+                                    user: AvatarData(item.uploaderName,
+                                        item.uploaderAvatarUrl),
+                                    radius: 13),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                    child: Text(
+                                        '${item.uploaderName} • ${item.createdAt == null ? '-' : dateTimeText(item.createdAt!)}',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: HamaColors.muted)))
+                              ]),
+                              trailing: IconButton(
+                                  onPressed: () async {
+                                    final ok = await openAttachment(
+                                        context,
+                                        item.fileName,
+                                        () => ref
+                                            .read(repoProvider)
+                                            .attachmentUrl(item));
+                                    // final ok = await openAttachment(() => ref
+                                    //     .read(repoProvider)
+                                    //     .attachmentUrl(item));
+                                    if (!ok && mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(const SnackBar(
+                                              content: Text(
+                                                  'تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')));
+                                    }
+                                  },
+                                  icon: const Icon(Icons.open_in_new_rounded)),
+                            ))
+                        .toList()),
             ]),
           ),
         );
@@ -410,14 +526,34 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
   }
 
   Future<void> _addAttachment() async {
-    final result = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true, type: FileType.custom, allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp']);
+    final result = await FilePicker.platform.pickFiles(
+        withData: true,
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: [
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'pdf',
+          'jpg',
+          'jpeg',
+          'png',
+          'webp'
+        ]);
     if (result == null) return;
     for (final file in result.files) {
       if (file.bytes == null) continue;
       try {
-        await ref.read(repoProvider).uploadAttachment(messageId: widget.messageId, fileName: file.name, bytes: file.bytes!, mimeType: _mimeFor(file.extension ?? ''));
+        await ref.read(repoProvider).uploadAttachment(
+            messageId: widget.messageId,
+            fileName: file.name,
+            bytes: file.bytes!,
+            mimeType: _mimeFor(file.extension ?? ''));
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        if (mounted)
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('$e')));
       }
     }
     if (mounted) setState(() {});
@@ -425,15 +561,25 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
 
   String _mimeFor(String ext) {
     switch (ext.toLowerCase()) {
-      case 'pdf': return 'application/pdf';
-      case 'doc': return 'application/msword';
-      case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'xls': return 'application/vnd.ms-excel';
-      case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      case 'jpg': case 'jpeg': return 'image/jpeg';
-      case 'png': return 'image/png';
-      case 'webp': return 'image/webp';
-      default: return 'application/octet-stream';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
     }
   }
 
@@ -445,28 +591,77 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const T('Reply'),
-          content: SizedBox(width: 520, child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: controller, maxLines: 6, decoration: InputDecoration(hintText: tr('Write a comment...'))),
-            const SizedBox(height: 10),
-            Align(alignment: AlignmentDirectional.centerStart, child: OutlinedButton.icon(onPressed: () async {
-              final result = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true, type: FileType.custom, allowedExtensions: ['doc','docx','xls','xlsx','pdf','jpg','jpeg','png','webp']);
-              if (result != null) setDialogState(() => files = result.files);
-            }, icon: const Icon(Icons.attach_file_rounded), label: Text('${tr('Attachments')} (${files.length})'))),
-            if (files.isNotEmpty) ...files.map((f) => Align(alignment: AlignmentDirectional.centerStart, child: Text('• ${f.name}', overflow: TextOverflow.ellipsis))).toList(),
-          ])),
+          content: SizedBox(
+              width: 520,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                    controller: controller,
+                    maxLines: 6,
+                    decoration:
+                        InputDecoration(hintText: tr('Write a comment...'))),
+                const SizedBox(height: 10),
+                Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final result = await FilePicker.platform.pickFiles(
+                              withData: true,
+                              allowMultiple: true,
+                              type: FileType.custom,
+                              allowedExtensions: [
+                                'doc',
+                                'docx',
+                                'xls',
+                                'xlsx',
+                                'pdf',
+                                'jpg',
+                                'jpeg',
+                                'png',
+                                'webp'
+                              ]);
+                          if (result != null)
+                            setDialogState(() => files = result.files);
+                        },
+                        icon: const Icon(Icons.attach_file_rounded),
+                        label: Text('${tr('Attachments')} (${files.length})'))),
+                if (files.isNotEmpty)
+                  ...files
+                      .map((f) => Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text('• ${f.name}',
+                              overflow: TextOverflow.ellipsis)))
+                      .toList(),
+              ])),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
-            FilledButton(onPressed: () async {
-              if (controller.text.trim().isEmpty && files.isEmpty) return;
-              try {
-                final commentId = await ref.read(repoProvider).addMessageComment(widget.messageId, controller.text);
-                for (final file in files) { if (file.bytes != null) await ref.read(repoProvider).uploadAttachment(messageCommentId: commentId, fileName: file.name, bytes: file.bytes!, mimeType: _mimeFor(file.extension ?? '')); }
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-                ref.invalidate(messageCommentsProvider(widget.messageId));
-      ref.invalidate(messageUnreadCommentsCountsProvider);
-      ref.invalidate(unreadMessageConversationsProvider);
-              } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'))); }
-            }, child: const T('Send')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const T('Cancel')),
+            FilledButton(
+                onPressed: () async {
+                  if (controller.text.trim().isEmpty && files.isEmpty) return;
+                  try {
+                    final commentId = await ref
+                        .read(repoProvider)
+                        .addMessageComment(widget.messageId, controller.text);
+                    for (final file in files) {
+                      if (file.bytes != null)
+                        await ref.read(repoProvider).uploadAttachment(
+                            messageCommentId: commentId,
+                            fileName: file.name,
+                            bytes: file.bytes!,
+                            mimeType: _mimeFor(file.extension ?? ''));
+                    }
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                    ref.invalidate(messageCommentsProvider(widget.messageId));
+                    ref.invalidate(messageUnreadCommentsCountsProvider);
+                    ref.invalidate(unreadMessageConversationsProvider);
+                  } catch (e) {
+                    if (mounted)
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(SnackBar(content: Text('$e')));
+                  }
+                },
+                child: const T('Send')),
           ],
         ),
       ),
@@ -475,11 +670,33 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
   }
 
   Widget _commentAttachments(String commentId) {
-    return FutureBuilder<List<AttachmentItem>>(future: ref.read(repoProvider).attachmentsForMessageComment(commentId), builder: (context, snap) {
-      final items = snap.data ?? const <AttachmentItem>[];
-      if (items.isEmpty) return const SizedBox.shrink();
-      return Wrap(spacing: 6, runSpacing: 6, children: items.map((a) => ActionChip(avatar: const Icon(Icons.insert_drive_file_outlined, size: 16), label: Text(a.fileName, overflow: TextOverflow.ellipsis), onPressed: () async { final ok = await openAttachment(() => ref.read(repoProvider).attachmentUrl(a)); if (!ok && mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.'))); } })).toList());
-    });
+    return FutureBuilder<List<AttachmentItem>>(
+        future: ref.read(repoProvider).attachmentsForMessageComment(commentId),
+        builder: (context, snap) {
+          final items = snap.data ?? const <AttachmentItem>[];
+          if (items.isEmpty) return const SizedBox.shrink();
+          return Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: items
+                  .map((a) => ActionChip(
+                      avatar: const Icon(Icons.insert_drive_file_outlined,
+                          size: 16),
+                      label: Text(a.fileName, overflow: TextOverflow.ellipsis),
+                      onPressed: () async {
+                        // إذا كان المتغير اسمه a:
+                        final ok = await openAttachment(context, a.fileName,
+                            () => ref.read(repoProvider).attachmentUrl(a));
+                        // final ok = await openAttachment(
+                        //     () => ref.read(repoProvider).attachmentUrl(a));
+                        if (!ok && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text(
+                                  'تعذر فتح المرفق. اسمح بالنوافذ المنبثقة لهذا الموقع ثم حاول مرة أخرى.')));
+                        }
+                      }))
+                  .toList());
+        });
   }
 
   Future<void> _convertToTask(MessageItem message) async {
@@ -519,7 +736,8 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                         ),
                       )
                       .toList(),
-                  onChanged: (value) => dialogSetState(() => responsible = value),
+                  onChanged: (value) =>
+                      dialogSetState(() => responsible = value),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -565,7 +783,9 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
                         responsibleId: responsible!,
                         messageId: message.id,
                       );
-                  await ref.read(repoProvider).linkMessageToTask(message.id, task.id);
+                  await ref
+                      .read(repoProvider)
+                      .linkMessageToTask(message.id, task.id);
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                   if (mounted) setState(() {});
                   ref.invalidate(messagesProvider);
@@ -589,8 +809,13 @@ class _MessageDetailScreenState extends ConsumerState<MessageDetailScreen> {
   }
 }
 
-
 class _ReplyEmpty extends StatelessWidget {
   const _ReplyEmpty();
-  @override Widget build(BuildContext context) => Container(width: double.infinity, padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: HamaColors.surface, borderRadius: BorderRadius.circular(14)), child: const T('No messages'));
+  @override
+  Widget build(BuildContext context) => Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+          color: HamaColors.surface, borderRadius: BorderRadius.circular(14)),
+      child: const T('No messages'));
 }
