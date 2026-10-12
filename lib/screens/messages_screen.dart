@@ -381,7 +381,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
     final users = await ref.read(usersProvider.future);
     if (!mounted) return;
     final content = TextEditingController();
-    String audience = 'everyone';
+    String audience = 'selected';
     final selected = <String>{};
 
     await showDialog<void>(
@@ -397,8 +397,9 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                   value: audience,
                   decoration: InputDecoration(labelText: tr('Recipients')),
                   items: const [
-                    DropdownMenuItem(value: 'everyone', child: T('Everyone')),
                     DropdownMenuItem(value: 'selected', child: T('Selected users')),
+                    DropdownMenuItem(value: 'everyone', child: T('Everyone')),
+                    
                   ],
                   onChanged: (v) => setDialogState(() => audience = v ?? audience),
                 ),
