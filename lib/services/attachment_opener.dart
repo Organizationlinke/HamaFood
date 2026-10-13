@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// دالة موحدة لفتح ومعاينة المرفقات من داخل التطبيق
-Future<bool> openAttachment(BuildContext context, String fileName, Future<String> Function() fetchUrl) async {
+Future<bool> openAttachment(BuildContext context, String fileName,
+    Future<String> Function() fetchUrl) async {
   await showDialog(
     context: context,
     builder: (context) => _AttachmentPreviewDialog(
@@ -14,7 +15,7 @@ Future<bool> openAttachment(BuildContext context, String fileName, Future<String
       fetchUrl: fetchUrl,
     ),
   );
-  return true; 
+  return true;
 }
 
 class _AttachmentPreviewDialog extends StatefulWidget {
@@ -28,7 +29,8 @@ class _AttachmentPreviewDialog extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<_AttachmentPreviewDialog> createState() => _AttachmentPreviewDialogState();
+  State<_AttachmentPreviewDialog> createState() =>
+      _AttachmentPreviewDialogState();
 }
 
 class _AttachmentPreviewDialogState extends State<_AttachmentPreviewDialog> {
@@ -43,7 +45,25 @@ class _AttachmentPreviewDialogState extends State<_AttachmentPreviewDialog> {
   }
 
   // جلب الرابط أثناء عرض الـ Loading في النافذة
-  Future<void> _loadUrl() async {
+  // Future<void> _loadUrl() async {
+  //   try {
+  //     final url = await widget.fetchUrl();
+  //     if (mounted) {
+  //       setState(() {
+  //         _url = url;
+  //         _isLoading = false;
+  //       });
+  //     }
+  //   } catch (e) {
+  //     if (mounted) {
+  //       setState(() {
+  //         _error = 'حدث خطأ أثناء جلب الرابط';
+  //         _isLoading = false;
+  //       });
+  //     }
+  //   }
+  // }
+Future<void> _loadUrl() async {
     try {
       final url = await widget.fetchUrl();
       if (mounted) {
@@ -55,13 +75,13 @@ class _AttachmentPreviewDialogState extends State<_AttachmentPreviewDialog> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'حدث خطأ أثناء جلب الرابط';
+          // عرض الخطأ الحقيقي القادم من السيرفر على الشاشة
+          _error = 'سبب الخطأ: ${e.toString()}';
           _isLoading = false;
         });
       }
     }
   }
-
   // للتحقق مما إذا كان المرفق صورة لكي نعرضها
   bool _isImage(String name) {
     final ext = name.split('.').last.toLowerCase();
@@ -111,7 +131,8 @@ class _AttachmentPreviewDialogState extends State<_AttachmentPreviewDialog> {
                   Expanded(
                     child: Text(
                       widget.fileName,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -122,7 +143,7 @@ class _AttachmentPreviewDialogState extends State<_AttachmentPreviewDialog> {
                 ],
               ),
             ),
-            
+
             // منطقة عرض المرفق
             Container(
               padding: const EdgeInsets.all(24),
@@ -131,32 +152,37 @@ class _AttachmentPreviewDialogState extends State<_AttachmentPreviewDialog> {
                 child: _isLoading
                     ? const CircularProgressIndicator()
                     : _error != null
-                        ? Text(_error!, style: const TextStyle(color: Colors.red))
+                        ? Text(_error!,
+                            style: const TextStyle(color: Colors.red))
                         : isImg
                             ? Image.network(
                                 _url!,
                                 fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) => 
+                                errorBuilder: (context, error, stackTrace) =>
                                     const Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.broken_image, size: 64, color: Colors.grey),
-                                        SizedBox(height: 8),
-                                        Text('معاينة غير متاحة', style: TextStyle(color: Colors.grey)),
-                                      ],
-                                    ),
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.broken_image,
+                                        size: 64, color: Colors.grey),
+                                    SizedBox(height: 8),
+                                    Text('معاينة غير متاحة',
+                                        style: TextStyle(color: Colors.grey)),
+                                  ],
+                                ),
                               )
                             : const Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.insert_drive_file, size: 80, color: Colors.grey),
+                                  Icon(Icons.insert_drive_file,
+                                      size: 80, color: Colors.grey),
                                   SizedBox(height: 16),
-                                  Text('هذا الملف غير مدعوم للمعاينة المباشرة', style: TextStyle(color: Colors.grey)),
+                                  Text('هذا الملف غير مدعوم للمعاينة المباشرة',
+                                      style: TextStyle(color: Colors.grey)),
                                 ],
                               ),
               ),
             ),
-            
+
             // زر التنزيل
             if (!_isLoading && _error == null)
               Padding(
