@@ -84,13 +84,15 @@ class HamaWorkApp extends ConsumerStatefulWidget {
   ConsumerState<HamaWorkApp> createState() => _HamaWorkAppState();
 }
 
-class _HamaWorkAppState extends ConsumerState<HamaWorkApp> {
+class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
+    with WidgetsBindingObserver {
   late final GoRouter router;
   StreamSubscription<AuthState>? _authSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     router = GoRouter(
       refreshListenable: GoRouterRefreshStream(
@@ -166,8 +168,37 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp> {
     });
   }
 
+  /// Updates the user's last-login/session timestamp whenever the app becomes
+  /// active again. This covers opening HF Team and returning to it after the
+  /// user switched to another application/tab, without requiring sign-out.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _recordAppResume();
+    }
+  }
+
+  Future<void> _recordAppResume() async {
+    final client = Supabase.instance.client;
+    if (client.auth.currentSession == null) return;
+
+    try {
+      await client.rpc('record_my_login');
+      // If an administrator is already on the Users screen, refresh the
+      // displayed last-login value after returning to the app.
+      if (mounted) {
+        ref.invalidate(usersProvider);
+      }
+    } catch (e, st) {
+      // Login/session usage must never be blocked by an audit-write failure.
+      debugPrint('record_my_login on app resume failed: $e');
+      debugPrintStack(stackTrace: st);
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _authSub?.cancel();
     super.dispose();
   }
