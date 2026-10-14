@@ -448,6 +448,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                                             }).map((u) => CheckboxListTile(
                                               dense: true,
                                               value: temp.contains(u.id),
+                                              secondary: UserAvatar(user: u, radius: 20),
                                               title: Text(u.fullName),
                                               subtitle: Text('@${u.username}'),
                                               onChanged: (v) => setSheetState(() {

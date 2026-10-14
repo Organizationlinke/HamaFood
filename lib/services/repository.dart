@@ -26,6 +26,16 @@ class AppRepository {
   }
 
   Future<List<Profile>> users({bool activeOnly = true}) async {
+    // The last-login timestamp is intentionally returned only through the
+    // GM-only RPC. Normal users never receive that field from this query.
+    final me = await myProfile();
+    if (me?.isGm == true) {
+      final rows = await _db.rpc('get_users_for_admin');
+      return (rows as List)
+          .map<Profile>((m) => Profile.fromMap(Map<String, dynamic>.from(m)))
+          .toList();
+    }
+
     var q = _db.from('profiles').select(
           'id,username,full_name,user_code,role,department,preferred_language,is_active,avatar_url',
         );
@@ -67,11 +77,11 @@ class AppRepository {
       throw const AuthException('User is inactive or username does not match');
     }
 
+    // Record the successful login using Supabase server time so the value is
+    // independent of the user's device clock. Failure to record the audit
+    // timestamp must not block an otherwise valid login.
     try {
-      await _db
-          .from('profiles')
-          .update({'last_seen_at': DateTime.now().toIso8601String()})
-          .eq('id', _uid);
+      await _db.rpc('record_my_login');
     } catch (_) {}
   }
 

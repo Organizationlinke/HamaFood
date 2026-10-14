@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../services/localization.dart';
@@ -48,7 +49,27 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                   child: ListTile(
                     leading: UserAvatar(user: u, radius: 22),
                     title: Text(u.fullName),
-                    subtitle: Text('@${u.username} • ${u.department}'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('@${u.username} • ${u.department}'),
+                        if (profile?.isGm == true) ...[
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              const Icon(Icons.login_rounded, size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                u.lastLoginAt == null
+                                    ? tr('Never logged in')
+                                    : '${tr('Last login')}: ${DateFormat('dd/MM/yyyy HH:mm').format(u.lastLoginAt!.toLocal())}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
                     trailing: profile?.isGm == true
                         ? PopupMenuButton<String>(
                             onSelected: (value) { if (value == 'reset') _resetPassword(u); },

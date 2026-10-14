@@ -2229,7 +2229,7 @@ final ok = await openAttachment(context, item.fileName, () => ref.read(repoProvi
                   decoration: InputDecoration(labelText: tr('Responsible')),
                   items: users
                       .map((u) => DropdownMenuItem(
-                          value: u.id, child: Text(u.fullName)))
+                          value: u.id, child: UserOptionTile(user: u, avatarRadius: 15, compact: true)))
                       .toList(),
                   onChanged: (v) =>
                       setDialogState(() => responsible = v ?? responsible),
@@ -2242,7 +2242,7 @@ final ok = await openAttachment(context, item.fileName, () => ref.read(repoProvi
                     const DropdownMenuItem<String?>(
                         value: null, child: T('No follower')),
                     ...users.map((u) => DropdownMenuItem<String?>(
-                        value: u.id, child: Text(u.fullName)))
+                        value: u.id, child: UserOptionTile(user: u, avatarRadius: 15, compact: true)))
                   ],
                   onChanged: (v) => setDialogState(() => follower = v),
                 ),

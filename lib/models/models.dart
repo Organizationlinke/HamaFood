@@ -30,6 +30,7 @@ class Profile implements ProfileLike {
   final String preferredLanguage;
   final bool isActive;
   final String? avatarUrl;
+  final DateTime? lastLoginAt;
 
   const Profile({
     required this.id,
@@ -41,6 +42,7 @@ class Profile implements ProfileLike {
     required this.preferredLanguage,
     required this.isActive,
     this.avatarUrl,
+    this.lastLoginAt,
   });
 
   bool get isGm => role == 'gm';
@@ -56,6 +58,7 @@ class Profile implements ProfileLike {
         preferredLanguage: (m['preferred_language'] ?? 'ar').toString() == 'en' ? 'en' : 'ar',
         isActive: _bool(m['is_active'], true),
         avatarUrl: m['avatar_url']?.toString(),
+        lastLoginAt: _date(m['last_login_at']),
       );
 }
 

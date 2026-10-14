@@ -213,6 +213,43 @@ class UserAvatar extends StatelessWidget {
   }
 }
 
+
+class UserOptionTile extends StatelessWidget {
+  final ProfileLike user;
+  final double avatarRadius;
+  final bool compact;
+
+  const UserOptionTile({
+    super.key,
+    required this.user,
+    this.avatarRadius = 16,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        UserAvatar(user: user, radius: avatarRadius, clickable: false),
+        SizedBox(width: compact ? 8 : 10),
+        // DropdownMenuItem can provide an unbounded horizontal constraint.
+        // Do not use Expanded/Flexible here; give the name an explicit
+        // maximum width so the tile can shrink-wrap safely.
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Text(
+            user.fullName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // Small structural interface so UserAvatar can be reused with Profile and other user-like records.
 class AvatarData implements ProfileLike {
   @override final String fullName;

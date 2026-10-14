@@ -268,7 +268,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                         .map(
                           (user) => DropdownMenuItem<String>(
                             value: user.id,
-                            child: Text(user.fullName),
+                            child: UserOptionTile(user: user, avatarRadius: 15, compact: true),
                           ),
                         )
                         .toList(),
@@ -287,7 +287,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                       ...users.map(
                         (user) => DropdownMenuItem<String?>(
                           value: user.id,
-                          child: Text(user.fullName),
+                          child: UserOptionTile(user: user, avatarRadius: 15, compact: true),
                         ),
                       ),
                     ],

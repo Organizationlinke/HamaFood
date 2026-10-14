@@ -192,6 +192,8 @@ class AppI18n {
     'Password changed successfully': 'تم تغيير كلمة المرور بنجاح',
     'Reset password': 'إعادة تعيين كلمة المرور',
     'Temporary password': 'كلمة المرور المؤقتة',
+    'Last login': 'آخر دخول',
+    'Never logged in': 'لم يسجل دخول من قبل',
     'Reset': 'إعادة تعيين',
     'Password reset successfully': 'تمت إعادة تعيين كلمة المرور بنجاح',
     'User': 'المستخدم',

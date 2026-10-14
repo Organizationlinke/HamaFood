@@ -357,7 +357,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         ),
       ),
 
-      body: widget.body,
+      // SelectionArea must live below the app Navigator/Overlay.
+      // Placing it in MaterialApp.builder causes "No Overlay widget found"
+      // on Flutter Web, so keep it at the screen-content level instead.
+      body: SelectionArea(
+        child: widget.body,
+      ),
 
       floatingActionButton: widget.floatingActionButton,
     );
