@@ -88,6 +88,8 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
     with WidgetsBindingObserver {
   late final GoRouter router;
   StreamSubscription<AuthState>? _authSub;
+  bool _homeEntryAuditDone = false;
+  bool _auditWriteInFlight = false;
 
   @override
   void initState() {
@@ -156,8 +158,11 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
       ],
     );
 
-    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((event) {
       if (!mounted) return;
+      if (event.event == AuthChangeEvent.signedOut) {
+        _homeEntryAuditDone = false;
+      }
       ref.invalidate(profileProvider);
       ref.invalidate(usersProvider);
       ref.invalidate(tasksProvider('my'));
@@ -179,20 +184,35 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
   }
 
   Future<void> _recordAppResume() async {
-    final client = Supabase.instance.client;
-    if (client.auth.currentSession == null) return;
+    await _writeLoginAudit(reason: 'app resume');
+  }
 
+  Future<void> _recordHomeEntryOnce() async {
+    if (_homeEntryAuditDone) return;
+    if (Supabase.instance.client.auth.currentSession == null) return;
+
+    _homeEntryAuditDone = true;
+    await _writeLoginAudit(reason: 'home entry');
+  }
+
+  Future<void> _writeLoginAudit({required String reason}) async {
+    final client = Supabase.instance.client;
+    if (client.auth.currentSession == null || _auditWriteInFlight) return;
+
+    _auditWriteInFlight = true;
     try {
       await client.rpc('record_my_login');
       // If an administrator is already on the Users screen, refresh the
-      // displayed last-login value after returning to the app.
+      // displayed last-login value after entering/returning to the app.
       if (mounted) {
         ref.invalidate(usersProvider);
       }
     } catch (e, st) {
       // Login/session usage must never be blocked by an audit-write failure.
-      debugPrint('record_my_login on app resume failed: $e');
+      debugPrint('record_my_login ($reason) failed: $e');
       debugPrintStack(stackTrace: st);
+    } finally {
+      _auditWriteInFlight = false;
     }
   }
 
@@ -209,6 +229,14 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
     final locale = ref.watch(languageProvider);
 
     if (profileState.hasValue && profileState.value != null) {
+      // The user can enter HF Team without performing a fresh password login
+      // because Supabase restores the saved session. Record that app entry
+      // once when the authenticated home shell is actually ready.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _recordHomeEntryOnce();
+      });
+
       final desired = profileState.value!.preferredLanguage == 'en'
           ? const Locale('en')
           : const Locale('ar');
