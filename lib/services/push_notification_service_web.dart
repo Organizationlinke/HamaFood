@@ -1,3 +1,4 @@
+import 'dart:html' as html;
 import 'dart:js_util' as js_util;
 
 import '../core/supabase_client.dart';
@@ -45,7 +46,7 @@ class HamaPushNotificationService {
     }
 
     try {
-      final permission = (await _call('getPermission', []))?.toString() ?? 'default';
+      final permission = await _browserPermission();
 
       if (permission == 'denied') {
         return const PushNotificationStatus(
@@ -102,11 +103,14 @@ class HamaPushNotificationService {
         message: 'Browser push subscription could not be created.',
       );
     } catch (e) {
+      // If the browser already granted permission, do NOT downgrade the
+      // status back to `default`. That made the app show the permission
+      // dialog again even though the browser had already allowed it.
       return PushNotificationStatus(
         supported: true,
         enabled: false,
-        permission: 'default',
-        message: 'Could not check browser notifications: $e',
+        permission: 'granted',
+        message: 'Notifications are allowed, but the browser push subscription could not be restored: $e',
       );
     }
   }
@@ -137,7 +141,7 @@ class HamaPushNotificationService {
     }
 
     try {
-      var permission = (await _call('getPermission', []))?.toString() ?? 'default';
+      var permission = await _browserPermission();
 
       if (permission == 'denied') {
         return const PushNotificationStatus(
@@ -150,7 +154,7 @@ class HamaPushNotificationService {
       }
 
       if (permission == 'default') {
-        permission = (await _call('requestPermission', []))?.toString() ?? 'default';
+        permission = await _requestBrowserPermission();
       }
 
       if (permission != 'granted') {
@@ -183,40 +187,96 @@ class HamaPushNotificationService {
         message: 'Browser notifications enabled.',
       );
     } catch (e) {
+      // Preserve the actual browser permission. A setup/network error must
+      // never be reported as `default`, otherwise the UI asks for permission
+      // again even when the browser already shows it as Allowed.
+      final currentPermission = (await _safePermission()).toString();
       return PushNotificationStatus(
         supported: true,
         enabled: false,
-        permission: 'default',
+        permission: currentPermission,
         message: 'Could not enable browser notifications: $e',
       );
     }
   }
 
   Future<void> _saveSubscription(String userId, dynamic raw) async {
-    final data = Map<String, dynamic>.from(
-      (raw as Map).map((key, value) => MapEntry(key.toString(), value)),
-    );
-    final keys = Map<String, dynamic>.from(
-      (data['keys'] as Map).map(
-        (key, value) => MapEntry(key.toString(), value),
-      ),
-    );
+    if (raw is! Map) {
+      throw StateError('Browser push returned an invalid subscription object.');
+    }
 
-    await supabase.from('user_push_subscriptions').upsert(
-      {
-        'user_id': userId,
-        'endpoint': data['endpoint'],
-        'p256dh': keys['p256dh'],
-        'auth': keys['auth'],
-        'expiration_time': data['expirationTime'],
-        'platform': 'web',
-        'user_agent': data['userAgent'],
-        'active': true,
-        'last_seen_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      },
-      onConflict: 'endpoint',
+    final data = Map<String, dynamic>.from(
+      raw.map((key, value) => MapEntry(key.toString(), value)),
     );
+    final rawKeys = data['keys'];
+    if (rawKeys is! Map) {
+      throw StateError('Browser push subscription is missing encryption keys.');
+    }
+
+    final keys = Map<String, dynamic>.from(
+      rawKeys.map((key, value) => MapEntry(key.toString(), value)),
+    );
+    final endpoint = data['endpoint']?.toString();
+    final p256dh = keys['p256dh']?.toString();
+    final auth = keys['auth']?.toString();
+
+    if (endpoint == null || endpoint.isEmpty ||
+        p256dh == null || p256dh.isEmpty ||
+        auth == null || auth.isEmpty) {
+      throw StateError('Browser push subscription is incomplete.');
+    }
+
+    try {
+      await supabase.from('user_push_subscriptions').upsert(
+        {
+          'user_id': userId,
+          'endpoint': endpoint,
+          'p256dh': p256dh,
+          'auth': auth,
+          'expiration_time': data['expirationTime'],
+          'platform': 'web',
+          'user_agent': data['userAgent']?.toString(),
+          'active': true,
+          'last_seen_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'endpoint',
+      );
+    } catch (e) {
+      throw StateError('Could not save the push subscription to Supabase: $e');
+    }
+  }
+
+  // Read browser notification permission directly from the Web Notification API.
+  // Do not route this through window.hamaPush: older cached push_bridge.js files
+  // can expose the object without exposing every method, which caused the
+  // `undefined (reading 'apply')` error.
+  Future<String> _browserPermission() async {
+    try {
+      final notification = js_util.getProperty(js_util.globalThis, 'Notification');
+      if (notification == null) return 'unsupported';
+      return js_util.getProperty(notification, 'permission')?.toString() ?? 'default';
+    } catch (_) {
+      return 'unsupported';
+    }
+  }
+
+  Future<String> _requestBrowserPermission() async {
+    final notification = js_util.getProperty(js_util.globalThis, 'Notification');
+    if (notification == null) {
+      throw StateError('Notifications are not supported by this browser.');
+    }
+    final result = js_util.callMethod(notification, 'requestPermission', const []);
+    final resolved = await js_util.promiseToFuture<Object?>(result);
+    return resolved?.toString() ?? 'default';
+  }
+
+  Future<String> _safePermission() async {
+    try {
+      return await _browserPermission();
+    } catch (_) {
+      return 'default';
+    }
   }
 
   Future<void> disable() async {
@@ -238,19 +298,78 @@ class HamaPushNotificationService {
     } catch (_) {}
   }
 
-  Future<dynamic> _call(String method, List<dynamic> args) async {
-    final bridge = js_util.getProperty(js_util.globalThis, 'hamaPush');
-    if (bridge == null) {
+  Future<void> _ensureBridge({String? requiredMethod}) async {
+    bool bridgeReady() {
+      final bridge = js_util.getProperty(js_util.globalThis, 'hamaPush');
+      if (bridge == null) return false;
+      if (requiredMethod == null) return true;
+      final method = js_util.getProperty(bridge, requiredMethod);
+      return method != null;
+    }
+
+    // A stale/partial bridge object can exist after a cached deployment.
+    // Checking only `window.hamaPush` is not enough: callMethod() will throw
+    // `undefined.apply` if the requested function is missing.
+    if (bridgeReady()) return;
+
+    final version = DateTime.now().millisecondsSinceEpoch.toString();
+    final scripts = html.document.querySelectorAll('script[src*="push_bridge.js"]');
+    for (final node in scripts) {
+      node.remove();
+    }
+
+    final script = html.ScriptElement()
+      ..src = Uri.base.resolve('push_bridge.js?v=$version').toString()
+      ..type = 'text/javascript';
+
+    final loadFuture = script.onLoad.first;
+    final errorFuture = script.onError.first.then((_) {
+      throw StateError('Could not load push_bridge.js.');
+    });
+
+    final head = html.document.head;
+    if (head == null) {
+      throw StateError('Browser document head is unavailable.');
+    }
+    head.append(script);
+
+    await Future.any([loadFuture, errorFuture]).timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw StateError('Timed out loading push_bridge.js.'),
+    );
+
+    // The script load event fires after execution in normal browsers, but
+    // keep a short verification loop for slow mobile WebViews/browsers.
+    for (var i = 0; i < 50; i++) {
+      if (bridgeReady()) return;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (!bridgeReady()) {
       throw StateError(
-        'Hama Push bridge is not loaded. Add web/push_bridge.js to web/index.html.',
+        requiredMethod == null
+            ? 'Hama Push bridge is unavailable.'
+            : 'Hama Push bridge method "$requiredMethod" is unavailable. Please reload HF Team.',
       );
     }
-    final value = js_util.callMethod(bridge, method, args);
+  }
+
+  Future<dynamic> _call(String method, List<dynamic> args) async {
+    await _ensureBridge(requiredMethod: method);
+    final bridge = js_util.getProperty(js_util.globalThis, 'hamaPush');
+    if (bridge == null) {
+      throw StateError('Hama Push bridge is unavailable.');
+    }
+
     try {
+      final value = js_util.callMethod(bridge, method, args);
       final resolved = await js_util.promiseToFuture<Object?>(value);
       return js_util.dartify(resolved);
-    } catch (_) {
-      return js_util.dartify(value);
+    } catch (e) {
+      // Do not try to dartify the rejected Promise itself. Doing so can hide
+      // the real browser error and turn a push setup failure into a misleading
+      // null-related exception.
+      throw StateError('Hama Push bridge "$method" failed: $e');
     }
   }
 }

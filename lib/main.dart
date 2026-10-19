@@ -230,10 +230,22 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
         return;
       }
 
-      // Show the HF Team explanation immediately after the authenticated home
-      // shell is ready. The browser's native permission prompt itself is
-      // requested only after the user taps the action button, which keeps the
-      // flow compatible with browsers that require user activation.
+      // If browser permission is already granted, never show the permission
+      // request again. At this point the remaining problem is subscription
+      // registration/synchronization, not browser permission.
+      if (status.permission == 'granted') {
+        _pushStartupCheckDone = true;
+        final context = _navigatorKey.currentState?.overlay?.context;
+        if (context != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(tr(status.message))),
+          );
+        }
+        return;
+      }
+
+      // Show the HF Team explanation only when browser permission is actually
+      // still `default` or `denied`.
       await _showPushStartupDialog(status);
       _pushStartupCheckDone = true;
     } finally {
