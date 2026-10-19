@@ -67,7 +67,7 @@ class HomeScreen extends ConsumerWidget {
                 children: [
                   Expanded(child: _metric(context, '${s.myTasks}', 'My Tasks', Icons.task_alt_rounded, HamaColors.teal, '/my-tasks')),
                   const SizedBox(width: 10),
-                  Expanded(child: _metric(context, '${s.overdueTasks}', 'Overdue Tasks', Icons.warning_amber_rounded, HamaColors.red, '/team-tasks?status=overdue')),
+                  Expanded(child: _metric(context, '${s.overdueTasks}', 'Overdue Tasks', Icons.warning_amber_rounded, HamaColors.red, '/team-tasks')),
                 ],
               ),
               const SizedBox(height: 10),
@@ -89,7 +89,7 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: 22),
               const HamaSectionHeader(title: 'Needs Your Attention', subtitle: 'A quick view of items that may need action', icon: Icons.bolt_rounded),
               const SizedBox(height: 12),
-              _attentionRow(context, 'Ready Tasks', '${s.readyTasks}', Icons.playlist_add_check_rounded, HamaColors.orange, '/team-tasks?status=ready_for_completion'),
+              _attentionRow(context, 'Ready Tasks', '${s.readyTasks}', Icons.playlist_add_check_rounded, HamaColors.orange, '/team-tasks'),
               const SizedBox(height: 8),
               _attentionRow(context, 'Unread Notifications', '${s.unreadNotifications}', Icons.notifications_none_rounded, HamaColors.teal, '/notifications'),
             ],

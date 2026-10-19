@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/supabase_client.dart';
+import 'core/resilient_local_storage.dart';
 import 'providers/providers.dart';
 import 'services/localization.dart';
+import 'services/push_notification_service.dart';
 import 'theme.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
@@ -35,13 +37,19 @@ Future<void> main() async {
   }
 
   try {
+    final supabaseUrl = AppConfig.url.trim();
     await Supabase.initialize(
-      url: AppConfig.url.trim(),
+      url: supabaseUrl,
       publishableKey: AppConfig.publishableKey.trim(),
       // Keep the authenticated session across browser refreshes/restarts.
-      // The password itself is never stored by HF Team.
-      authOptions: const FlutterAuthClientOptions(
+      // If mobile browser localStorage becomes unavailable, the resilient
+      // storage falls back to memory instead of crashing the whole app.
+      authOptions: FlutterAuthClientOptions(
         autoRefreshToken: true,
+        localStorage: ResilientLocalStorage(
+          persistSessionKey:
+              'sb-${Uri.parse(supabaseUrl).host.split('.').first}-auth-token',
+        ),
       ),
     );
   } catch (e) {
@@ -87,9 +95,12 @@ class HamaWorkApp extends ConsumerStatefulWidget {
 class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
     with WidgetsBindingObserver {
   late final GoRouter router;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   StreamSubscription<AuthState>? _authSub;
   bool _homeEntryAuditDone = false;
   bool _auditWriteInFlight = false;
+  bool _pushStartupCheckDone = false;
+  bool _pushStartupCheckInFlight = false;
 
   @override
   void initState() {
@@ -97,6 +108,7 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
     WidgetsBinding.instance.addObserver(this);
 
     router = GoRouter(
+      navigatorKey: _navigatorKey,
       refreshListenable: GoRouterRefreshStream(
         Supabase.instance.client.auth.onAuthStateChange,
       ),
@@ -168,6 +180,7 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
       if (!mounted) return;
       if (event.event == AuthChangeEvent.signedOut) {
         _homeEntryAuditDone = false;
+        _pushStartupCheckDone = false;
       }
       ref.invalidate(profileProvider);
       ref.invalidate(usersProvider);
@@ -199,6 +212,111 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
 
     _homeEntryAuditDone = true;
     await _writeLoginAudit(reason: 'home entry');
+    await _checkPushNotificationsAtStartup();
+  }
+
+  Future<void> _checkPushNotificationsAtStartup() async {
+    if (_pushStartupCheckDone || _pushStartupCheckInFlight) return;
+    if (Supabase.instance.client.auth.currentSession == null) return;
+
+    _pushStartupCheckInFlight = true;
+    try {
+      final service = HamaPushNotificationService();
+      final status = await service.checkAtAppStart();
+
+      if (!mounted) return;
+      if (status.enabled) {
+        _pushStartupCheckDone = true;
+        return;
+      }
+
+      // Show the HF Team explanation immediately after the authenticated home
+      // shell is ready. The browser's native permission prompt itself is
+      // requested only after the user taps the action button, which keeps the
+      // flow compatible with browsers that require user activation.
+      await _showPushStartupDialog(status);
+      _pushStartupCheckDone = true;
+    } finally {
+      _pushStartupCheckInFlight = false;
+    }
+  }
+
+  Future<void> _showPushStartupDialog(PushNotificationStatus status) async {
+    final denied = status.permissionDenied;
+
+    final materialContext = _navigatorKey.currentState?.overlay?.context;
+    if (materialContext == null) return;
+
+    final action = await showDialog<bool>(
+      context: materialContext,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          tr(denied
+              ? 'Notifications are blocked'
+              : 'Allow HF Team notifications'),
+        ),
+        content: Text(
+          tr(denied
+              ? 'You previously denied notifications. HF Team cannot show browser notifications until you allow them from your browser/site notification settings.'
+              : 'HF Team needs notification permission to alert you about new tasks, messages, replies, and other important activity. Please allow notifications.'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(tr('Later')),
+          ),
+          if (!denied)
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.notifications_active_rounded),
+              label: Text(tr('Allow notifications')),
+            ),
+        ],
+      ),
+    );
+
+    if (!mounted || action != true || denied) return;
+
+    final result = await HamaPushNotificationService().enable();
+    if (!mounted) return;
+
+    if (result.enabled) {
+      final snackContext = _navigatorKey.currentState?.overlay?.context;
+      if (snackContext != null) {
+        ScaffoldMessenger.of(snackContext).showSnackBar(
+          SnackBar(content: Text(tr('Browser notifications enabled.'))),
+        );
+      }
+      return;
+    }
+
+    if (result.permissionDenied) {
+      final dialogContext = _navigatorKey.currentState?.overlay?.context;
+      if (dialogContext == null) return;
+      await showDialog<void>(
+        context: dialogContext,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(tr('Notifications are blocked')),
+          content: Text(
+            tr('You denied notification permission. Open your browser/site notification settings and allow HF Team notifications, then reopen HF Team.'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(tr('OK')),
+            ),
+          ],
+        ),
+      );
+    } else {
+      final snackContext = _navigatorKey.currentState?.overlay?.context;
+      if (snackContext != null) {
+        ScaffoldMessenger.of(snackContext).showSnackBar(
+          SnackBar(content: Text(tr(result.message))),
+        );
+      }
+    }
   }
 
   Future<void> _writeLoginAudit({required String reason}) async {

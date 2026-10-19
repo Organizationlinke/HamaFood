@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:js_util' as js_util;
 
 import '../core/supabase_client.dart';
@@ -8,12 +6,17 @@ class PushNotificationStatus {
   final bool supported;
   final bool enabled;
   final String message;
+  final String permission;
 
   const PushNotificationStatus({
     required this.supported,
     required this.enabled,
     required this.message,
+    this.permission = 'default',
   });
+
+  bool get needsPermission => permission == 'default' && !enabled;
+  bool get permissionDenied => permission == 'denied';
 }
 
 class HamaPushNotificationService {
@@ -21,50 +24,13 @@ class HamaPushNotificationService {
     'HAMA_VAPID_PUBLIC_KEY',
   );
 
-  Future<bool> isEnabled() async {
-    if (_vapidPublicKey.trim().isEmpty) return false;
-    final user = supabase.auth.currentUser;
-    if (user == null) return false;
-    try {
-      // The database flag is the user's HF Team preference.
-      // The browser subscription is then checked separately so the switch
-      // stays ON across page reloads without blindly re-enabling a user who
-      // explicitly turned notifications OFF.
-      final rows = await supabase
-          .from('user_push_subscriptions')
-          .select('endpoint, active')
-          .eq('user_id', user.id)
-          .eq('platform', 'web')
-          .eq('active', true)
-          .limit(1);
-      if (rows.isEmpty) return false;
-
-      final browserSubscription = await _call('getSubscription', []);
-      if (browserSubscription is Map && browserSubscription['endpoint'] != null) {
-        return rows.any((row) =>
-            row['endpoint']?.toString() == browserSubscription['endpoint'].toString());
-      }
-
-      // Permission may still be granted after a browser/service-worker restart.
-      // Re-create the subscription only when the user had already enabled it.
-      final raw = await _call('subscribe', [_vapidPublicKey]);
-      if (raw != null) {
-        await _saveSubscription(user.id, raw);
-        return true;
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<PushNotificationStatus> enable() async {
+  Future<PushNotificationStatus> checkAtAppStart() async {
     if (_vapidPublicKey.trim().isEmpty) {
       return const PushNotificationStatus(
-        supported: true,
+        supported: false,
         enabled: false,
-        message:
-            'HAMA_VAPID_PUBLIC_KEY is not configured in the web build.',
+        permission: 'unsupported',
+        message: 'HAMA_VAPID_PUBLIC_KEY is not configured in the web build.',
       );
     }
 
@@ -73,17 +39,128 @@ class HamaPushNotificationService {
       return const PushNotificationStatus(
         supported: true,
         enabled: false,
+        permission: 'default',
         message: 'Please sign in first.',
       );
     }
 
     try {
-      final permission = await _call('requestPermission', []);
+      final permission = (await _call('getPermission', []))?.toString() ?? 'default';
+
+      if (permission == 'denied') {
+        return const PushNotificationStatus(
+          supported: true,
+          enabled: false,
+          permission: 'denied',
+          message: 'Notifications are blocked for HF Team in this browser.',
+        );
+      }
+
+      if (permission != 'granted') {
+        return const PushNotificationStatus(
+          supported: true,
+          enabled: false,
+          permission: 'default',
+          message: 'HF Team needs notification permission.',
+        );
+      }
+
+      // Permission is already granted. Repair/re-create the subscription if
+      // the browser lost it or the database no longer has the active row.
+      final raw = await _call('getSubscription', []);
+      if (raw != null) {
+        // Permission may survive a deployment while the database row is
+        // inactive/stale. Upsert it on every app start so the current device
+        // is active again without asking the user for permission a second time.
+        await _saveSubscription(user.id, raw);
+        return const PushNotificationStatus(
+          supported: true,
+          enabled: true,
+          permission: 'granted',
+          message: 'Browser notifications enabled.',
+        );
+      }
+
+      // The browser still grants notification permission, but the Push
+      // subscription itself may have disappeared. Re-create it silently;
+      // no permission prompt is required when permission is already granted.
+      final created = await _call('subscribe', [_vapidPublicKey]);
+      if (created != null) {
+        await _saveSubscription(user.id, created);
+        return const PushNotificationStatus(
+          supported: true,
+          enabled: true,
+          permission: 'granted',
+          message: 'Browser notifications enabled.',
+        );
+      }
+
+      return const PushNotificationStatus(
+        supported: true,
+        enabled: false,
+        permission: 'granted',
+        message: 'Browser push subscription could not be created.',
+      );
+    } catch (e) {
+      return PushNotificationStatus(
+        supported: true,
+        enabled: false,
+        permission: 'default',
+        message: 'Could not check browser notifications: $e',
+      );
+    }
+  }
+
+  Future<bool> isEnabled() async {
+    final status = await checkAtAppStart();
+    return status.enabled;
+  }
+
+  Future<PushNotificationStatus> enable() async {
+    if (_vapidPublicKey.trim().isEmpty) {
+      return const PushNotificationStatus(
+        supported: false,
+        enabled: false,
+        permission: 'unsupported',
+        message: 'HAMA_VAPID_PUBLIC_KEY is not configured in the web build.',
+      );
+    }
+
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      return const PushNotificationStatus(
+        supported: true,
+        enabled: false,
+        permission: 'default',
+        message: 'Please sign in first.',
+      );
+    }
+
+    try {
+      var permission = (await _call('getPermission', []))?.toString() ?? 'default';
+
+      if (permission == 'denied') {
+        return const PushNotificationStatus(
+          supported: true,
+          enabled: false,
+          permission: 'denied',
+          message:
+              'Notifications are blocked. Open your browser/site notification settings and allow HF Team notifications.',
+        );
+      }
+
+      if (permission == 'default') {
+        permission = (await _call('requestPermission', []))?.toString() ?? 'default';
+      }
+
       if (permission != 'granted') {
         return PushNotificationStatus(
           supported: true,
           enabled: false,
-          message: 'Browser notification permission: $permission',
+          permission: permission,
+          message: permission == 'denied'
+              ? 'Notifications are blocked. Open your browser/site notification settings and allow HF Team notifications.'
+              : 'Notification permission was not granted.',
         );
       }
 
@@ -92,31 +169,24 @@ class HamaPushNotificationService {
         return const PushNotificationStatus(
           supported: true,
           enabled: false,
+          permission: 'granted',
           message: 'Browser push subscription could not be created.',
         );
       }
 
-      final data = Map<String, dynamic>.from(
-        (raw as Map).map((key, value) => MapEntry(key.toString(), value)),
-      );
-
-      final keys = Map<String, dynamic>.from(
-        (data['keys'] as Map).map(
-          (key, value) => MapEntry(key.toString(), value),
-        ),
-      );
-
-      await _saveSubscription(user.id, data);
+      await _saveSubscription(user.id, raw);
 
       return const PushNotificationStatus(
         supported: true,
         enabled: true,
+        permission: 'granted',
         message: 'Browser notifications enabled.',
       );
     } catch (e) {
       return PushNotificationStatus(
         supported: true,
         enabled: false,
+        permission: 'default',
         message: 'Could not enable browser notifications: $e',
       );
     }
@@ -131,6 +201,7 @@ class HamaPushNotificationService {
         (key, value) => MapEntry(key.toString(), value),
       ),
     );
+
     await supabase.from('user_push_subscriptions').upsert(
       {
         'user_id': userId,
@@ -168,17 +239,13 @@ class HamaPushNotificationService {
   }
 
   Future<dynamic> _call(String method, List<dynamic> args) async {
-    final bridge = js_util.getProperty(
-      js_util.globalThis,
-      'hamaPush',
-    );
+    final bridge = js_util.getProperty(js_util.globalThis, 'hamaPush');
     if (bridge == null) {
       throw StateError(
         'Hama Push bridge is not loaded. Add web/push_bridge.js to web/index.html.',
       );
     }
     final value = js_util.callMethod(bridge, method, args);
-    if (value is Future) return value;
     try {
       final resolved = await js_util.promiseToFuture<Object?>(value);
       return js_util.dartify(resolved);

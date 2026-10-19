@@ -1,7 +1,21 @@
 import webpush from "npm:web-push";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const serviceRoleKey = Deno.env.get("HAMA_SUPABASE_SECRET_KEY")!;
+const legacySecretKey = Deno.env.get("HAMA_SUPABASE_SECRET_KEY") || "";
+const secretKeysRaw = Deno.env.get("SUPABASE_SECRET_KEYS") || "";
+
+function resolveSecretKey() {
+  if (legacySecretKey.trim()) return legacySecretKey.trim();
+  if (!secretKeysRaw.trim()) return "";
+  try {
+    const parsed = JSON.parse(secretKeysRaw);
+    return String(parsed?.default || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
+
+const serviceRoleKey = resolveSecretKey();
 const vapidPublicKey = Deno.env.get("HAMA_VAPID_PUBLIC_KEY")!;
 const vapidPrivateKey = Deno.env.get("HAMA_VAPID_PRIVATE_KEY")!;
 const vapidSubject = Deno.env.get("HAMA_VAPID_SUBJECT") || "mailto:admin@hamaholding.com";
@@ -38,6 +52,11 @@ async function supabaseFetch(path: string, init: RequestInit = {}) {
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
+
+  if (!serviceRoleKey) {
+    console.error("PUSH FUNCTION CONFIG ERROR: no Supabase secret key configured");
+    return json({ error: "Supabase server secret key is not configured" }, 500);
+  }
 
   if (!webhookSecret || req.headers.get("x-hama-webhook-secret") !== webhookSecret) {
     return json({ error: "Unauthorized" }, 401);

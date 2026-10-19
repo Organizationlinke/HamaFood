@@ -37,7 +37,7 @@ The function uses `npm:web-push`.
 Set these Supabase Edge Function secrets:
 
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `HAMA_SUPABASE_SECRET_KEY` (legacy project secret) or Supabase built-in `SUPABASE_SECRET_KEYS`
 - `HAMA_VAPID_PUBLIC_KEY`
 - `HAMA_VAPID_PRIVATE_KEY`
 - `HAMA_VAPID_SUBJECT` (example: `mailto:admin@hamaholding.com`)
