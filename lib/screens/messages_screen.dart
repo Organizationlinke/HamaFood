@@ -107,117 +107,95 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
         ),
       ],
       body: ref.watch(messagesProvider).when(
-            loading: () => const LoadingView(),
-            error: (e, _) =>
-                ErrorView(e, retry: () => ref.invalidate(messagesProvider)),
-            data: (items) {
-              final unreadCounts = ref
-                  .watch(messageUnreadCommentsCountsProvider)
-                  .maybeWhen(
-                      data: (m) => m, orElse: () => const <String, int>{});
-              final statusCounts = ref
-                  .watch(messageStatusCountsProvider)
-                  .maybeWhen(
-                      data: (m) => m, orElse: () => const <String, int>{});
-              final filtered =
-                  items.where((m) => m.myStatus == _statusTab).toList();
-              final activeList = filtered.isNotEmpty ? filtered : items;
-              if (items.isEmpty)
-                return const EmptyView('No messages',
-                    icon: Icons.chat_bubble_outline);
-              final active = selectedId == null ||
-                      !activeList.any((m) => m.id == selectedId)
-                  ? activeList.first
-                  : activeList.firstWhere((m) => m.id == selectedId);
-              if (selectedId == null) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) _select(active.id, markRead: false);
-                });
-              }
+        loading: () => const LoadingView(),
+        error: (e, _) => ErrorView(e, retry: () => ref.invalidate(messagesProvider)),
+        data: (items) {
+          final unreadCounts = ref.watch(messageUnreadCommentsCountsProvider).maybeWhen(data: (m) => m, orElse: () => const <String, int>{});
+          final statusCounts = ref.watch(messageStatusCountsProvider).maybeWhen(data: (m) => m, orElse: () => const <String, int>{});
+          final filtered = items.where((m) => m.myStatus == _statusTab).toList();
+          final activeList = filtered.isNotEmpty ? filtered : items;
+          if (items.isEmpty) return const EmptyView('No messages', icon: Icons.chat_bubble_outline);
+          final active = selectedId == null || !activeList.any((m) => m.id == selectedId)
+              ? activeList.first
+              : activeList.firstWhere((m) => m.id == selectedId);
+          if (selectedId == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _select(active.id, markRead: false);
+            });
+          }
 
-              return Column(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
-                    child: HamaSectionHeader(
-                      title: 'Messages',
-                      subtitle:
-                          'Information, actions and task-related communication',
-                      icon: Icons.forum_rounded,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: _statusTabs(statusCounts),
-                  ),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final wide = constraints.maxWidth >= 900;
-                        if (!wide) {
-                          return RefreshIndicator(
-                            onRefresh: () async {
-                              ref.invalidate(messagesProvider);
-                              await ref.read(messagesProvider.future);
-                            },
-                            child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 10),
-                              itemBuilder: (_, i) => _messageTile(filtered[i],
-                                  unreadCounts[filtered[i].id] ?? 0),
-                            ),
-                          );
-                        }
+          return Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
+                child: HamaSectionHeader(
+                  title: 'Messages',
+                  subtitle: 'Information, actions and task-related communication',
+                  icon: Icons.forum_rounded,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: _statusTabs(statusCounts),
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 900;
+                    if (!wide) {
+                      return RefreshIndicator(
+                        onRefresh: () async {
+                          ref.invalidate(messagesProvider);
+                          await ref.read(messagesProvider.future);
+                        },
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (_, i) => _messageTile(filtered[i], unreadCounts[filtered[i].id] ?? 0),
+                        ),
+                      );
+                    }
 
-                        return Container(
-                          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(color: HamaColors.border),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: HamaColors.navy.withOpacity(.06),
-                                  blurRadius: 22,
-                                  offset: const Offset(0, 8))
-                            ],
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              SizedBox(
-                                width: 430,
-                                child: RefreshIndicator(
-                                  onRefresh: () async {
-                                    ref.invalidate(messagesProvider);
-                                    await ref.read(messagesProvider.future);
-                                  },
-                                  child: ListView.separated(
-                                    padding: const EdgeInsets.all(16),
-                                    itemCount: filtered.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(height: 8),
-                                    itemBuilder: (_, i) => _messageTile(
-                                        filtered[i],
-                                        unreadCounts[filtered[i].id] ?? 0),
-                                  ),
-                                ),
+                    return Container(
+                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: HamaColors.border),
+                        boxShadow: [BoxShadow(color: HamaColors.navy.withOpacity(.06), blurRadius: 22, offset: const Offset(0, 8))],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            width: 430,
+                            child: RefreshIndicator(
+                              onRefresh: () async {
+                                ref.invalidate(messagesProvider);
+                                await ref.read(messagesProvider.future);
+                              },
+                              child: ListView.separated(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                itemBuilder: (_, i) => _messageTile(filtered[i], unreadCounts[filtered[i].id] ?? 0),
                               ),
-                              const VerticalDivider(width: 1),
-                              Expanded(child: _recipientPanel(active)),
-                            ],
+                            ),
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+                          const VerticalDivider(width: 1),
+                          Expanded(child: _recipientPanel(active)),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -247,12 +225,9 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
               }),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
                 decoration: BoxDecoration(
-                  color: selected
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : Colors.transparent,
+                  color: selected ? Theme.of(context).colorScheme.primaryContainer : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -260,27 +235,12 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                   children: [
                     Icon(tab.$3, size: 17),
                     const SizedBox(width: 6),
-                    Flexible(
-                        child: Text(tab.$2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                fontWeight: selected
-                                    ? FontWeight.w900
-                                    : FontWeight.w700))),
+                    Flexible(child: Text(tab.$2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: selected ? FontWeight.w900 : FontWeight.w700))),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: selected
-                              ? Theme.of(context).colorScheme.primary
-                              : HamaColors.border,
-                          borderRadius: BorderRadius.circular(20)),
-                      child: Text('$count',
-                          style: TextStyle(
-                              color: selected ? Colors.white : HamaColors.ink,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900)),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(color: selected ? Theme.of(context).colorScheme.primary : HamaColors.border, borderRadius: BorderRadius.circular(20)),
+                      child: Text('$count', style: TextStyle(color: selected ? Colors.white : HamaColors.ink, fontSize: 11, fontWeight: FontWeight.w900)),
                     ),
                   ],
                 ),
@@ -293,20 +253,9 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   }
 
   Widget _statusChip(String status) {
-    final label = status == 'not_started'
-        ? 'لم يتم البدء'
-        : status == 'in_progress'
-            ? 'تحت التنفيذ'
-            : 'منتهية';
-    final icon = status == 'not_started'
-        ? Icons.radio_button_unchecked
-        : status == 'in_progress'
-            ? Icons.pending_actions
-            : Icons.check_circle;
-    return Chip(
-        avatar: Icon(icon, size: 15),
-        label: Text(label,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)));
+    final label = status == 'not_started' ? 'لم يتم البدء' : status == 'in_progress' ? 'تحت التنفيذ' : 'منتهية';
+    final icon = status == 'not_started' ? Icons.radio_button_unchecked : status == 'in_progress' ? Icons.pending_actions : Icons.check_circle;
+    return Chip(avatar: Icon(icon, size: 15), label: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)));
   }
 
   Widget _statusMenu(MessageItem message) {
@@ -341,9 +290,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
             _select(message.id);
           }
         },
-        leading: UserAvatar(
-            user: AvatarData(message.senderName, message.senderAvatarUrl),
-            radius: 22),
+        leading: UserAvatar(user: AvatarData(message.senderName, message.senderAvatarUrl), radius: 22),
         title: Text(message.senderName),
         subtitle: Text(
           '${message.content}\n${tr('Seen')}: ${message.seenCount}/${message.recipientCount}',
@@ -351,23 +298,9 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          // _statusChip(message.myStatus),
-          if (unreadReplies > 0)
-            Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                    color: HamaColors.red, shape: BoxShape.circle),
-                child: Text('$unreadReplies',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900))),
+          if (unreadReplies > 0) Container(width: 24, height: 24, alignment: Alignment.center, decoration: const BoxDecoration(color: HamaColors.red, shape: BoxShape.circle), child: Text('$unreadReplies', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900))),
           const SizedBox(width: 4),
-          message.seenByMe
-              ? const Icon(Icons.done_all)
-              : const Icon(Icons.mark_unread_chat_alt_outlined),
+          message.seenByMe ? const Icon(Icons.done_all) : const Icon(Icons.mark_unread_chat_alt_outlined),
           _statusMenu(message),
         ]),
       ),
@@ -375,8 +308,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
   }
 
   Widget _recipientPanel(MessageItem message) {
-    final future = recipientsFuture ??
-        ref.read(repoProvider).messageRecipients(message.id);
+    final future = recipientsFuture ?? ref.read(repoProvider).messageRecipients(message.id);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -385,36 +317,16 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [HamaColors.navy, HamaColors.navy2]),
-                borderRadius: BorderRadius.circular(18)),
+            decoration: BoxDecoration(gradient: const LinearGradient(colors: [HamaColors.navy, HamaColors.navy2]), borderRadius: BorderRadius.circular(18)),
             child: Row(children: [
-              UserAvatar(
-                  user: AvatarData(message.senderName, message.senderAvatarUrl),
-                  radius: 23),
+              UserAvatar(user: AvatarData(message.senderName, message.senderAvatarUrl), radius: 23),
               const SizedBox(width: 12),
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text(message.senderName,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 4),
-                    Text(shortDate(message.createdAt),
-                        style: TextStyle(color: Colors.white.withOpacity(.72)))
-                  ])),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(message.senderName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(shortDate(message.createdAt), style: TextStyle(color: Colors.white.withOpacity(.72))) ])),
             ]),
           ),
           const SizedBox(height: 12),
           Card(
-            child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Text(message.content,
-                    style: const TextStyle(fontSize: 17, height: 1.5))),
+            child: Padding(padding: const EdgeInsets.all(18), child: Text(message.content, style: const TextStyle(fontSize: 17, height: 1.5))),
           ),
           const SizedBox(height: 20),
           Card(
@@ -426,30 +338,21 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                   Row(children: [
                     const Icon(Icons.people_alt_outlined),
                     const SizedBox(width: 8),
-                    const Expanded(
-                        child: T('Recipients',
-                            style: TextStyle(fontWeight: FontWeight.w700))),
+                    const Expanded(child: T('Recipients', style: TextStyle(fontWeight: FontWeight.w700))),
                     Text('${message.recipientCount}'),
                   ]),
                   const SizedBox(height: 12),
                   FutureBuilder<List<Profile>>(
                     future: future,
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState != ConnectionState.done)
-                        return const LinearProgressIndicator();
-                      if (snapshot.hasError)
-                        return Text(tr('Could not load recipients'));
+                      if (snapshot.connectionState != ConnectionState.done) return const LinearProgressIndicator();
+                      if (snapshot.hasError) return Text(tr('Could not load recipients'));
                       final users = snapshot.data ?? const <Profile>[];
                       if (users.isEmpty) return Text(tr('No recipients'));
                       return Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: users
-                            .map((u) => InputChip(
-                                avatar: UserAvatar(user: u, radius: 14),
-                                label: Text(u.fullName),
-                                onPressed: () => _showUserImage(u)))
-                            .toList(),
+                        children: users.map((u) => InputChip(avatar: UserAvatar(user: u, radius: 14), label: Text(u.fullName), onPressed: () => _showUserImage(u))).toList(),
                       );
                     },
                   ),
@@ -470,24 +373,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
 
   void _showUserImage(Profile u) {
     if (u.avatarUrl == null || u.avatarUrl!.isEmpty) return;
-    showDialog<void>(
-        context: context,
-        builder: (_) => Dialog(
-            child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  UserAvatar(user: u, radius: 110),
-                  const SizedBox(height: 12),
-                  Text(u.fullName,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 6),
-                  Text('@${u.username}'),
-                  const SizedBox(height: 12),
-                  TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const T('Close'))
-                ]))));
+    showDialog<void>(context: context, builder: (_) => Dialog(child: Padding(padding: const EdgeInsets.all(18), child: Column(mainAxisSize: MainAxisSize.min, children: [UserAvatar(user: u, radius: 110), const SizedBox(height: 12), Text(u.fullName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text('@${u.username}'), const SizedBox(height: 12), TextButton(onPressed: () => Navigator.pop(context), child: const T('Close'))]))));
   }
 
   Future<void> _newMessage(BuildContext context) async {
@@ -510,12 +396,11 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                   value: audience,
                   decoration: InputDecoration(labelText: tr('Recipients')),
                   items: const [
-                    DropdownMenuItem(
-                        value: 'selected', child: T('Selected users')),
+                    DropdownMenuItem(value: 'selected', child: T('Selected users')),
                     DropdownMenuItem(value: 'everyone', child: T('Everyone')),
+                    
                   ],
-                  onChanged: (v) =>
-                      setDialogState(() => audience = v ?? audience),
+                  onChanged: (v) => setDialogState(() => audience = v ?? audience),
                 ),
                 if (audience == 'selected') ...[
                   const SizedBox(height: 12),
@@ -529,8 +414,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                       ),
                       OutlinedButton.icon(
                         onPressed: () async {
-                          final result =
-                              await showModalBottomSheet<Set<String>>(
+                          final result = await showModalBottomSheet<Set<String>>(
                             context: context,
                             isScrollControlled: true,
                             builder: (sheetContext) {
@@ -539,8 +423,7 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                               return StatefulBuilder(
                                 builder: (context, setSheetState) => SafeArea(
                                   child: SizedBox(
-                                    height:
-                                        MediaQuery.sizeOf(context).height * .78,
+                                    height: MediaQuery.sizeOf(context).height * .78,
                                     child: Column(
                                       children: [
                                         Padding(
@@ -548,55 +431,39 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                                           child: TextField(
                                             controller: search,
                                             decoration: InputDecoration(
-                                              prefixIcon:
-                                                  const Icon(Icons.search),
+                                              prefixIcon: const Icon(Icons.search),
                                               hintText: tr('Search users'),
                                             ),
-                                            onChanged: (_) =>
-                                                setSheetState(() {}),
+                                            onChanged: (_) => setSheetState(() {}),
                                           ),
                                         ),
                                         Expanded(
                                           child: ListView(
-                                            children: users
-                                                .where((u) {
-                                                  final q = search.text
-                                                      .trim()
-                                                      .toLowerCase();
-                                                  return q.isEmpty ||
-                                                      u.fullName
-                                                          .toLowerCase()
-                                                          .contains(q) ||
-                                                      u.username
-                                                          .toLowerCase()
-                                                          .contains(q);
-                                                })
-                                                .map((u) => CheckboxListTile(
-                                                      dense: true,
-                                                      value:
-                                                          temp.contains(u.id),
-                                                      secondary: UserAvatar(
-                                                          user: u, radius: 20),
-                                                      title: Text(u.fullName),
-                                                      subtitle: Text(
-                                                          '@${u.username}'),
-                                                      onChanged: (v) =>
-                                                          setSheetState(() {
-                                                        if (v == true) {
-                                                          temp.add(u.id);
-                                                        } else {
-                                                          temp.remove(u.id);
-                                                        }
-                                                      }),
-                                                    ))
-                                                .toList(),
+                                            children: users.where((u) {
+                                              final q = search.text.trim().toLowerCase();
+                                              return q.isEmpty ||
+                                                  u.fullName.toLowerCase().contains(q) ||
+                                                  u.username.toLowerCase().contains(q);
+                                            }).map((u) => CheckboxListTile(
+                                              dense: true,
+                                              value: temp.contains(u.id),
+                                              secondary: UserAvatar(user: u, radius: 20),
+                                              title: Text(u.fullName),
+                                              subtitle: Text('@${u.username}'),
+                                              onChanged: (v) => setSheetState(() {
+                                                if (v == true) {
+                                                  temp.add(u.id);
+                                                } else {
+                                                  temp.remove(u.id);
+                                                }
+                                              }),
+                                            )).toList(),
                                           ),
                                         ),
                                         Padding(
                                           padding: const EdgeInsets.all(12),
                                           child: FilledButton(
-                                            onPressed: () => Navigator.pop(
-                                                sheetContext, temp),
+                                            onPressed: () => Navigator.pop(sheetContext, temp),
                                             child: Text(tr('Done')),
                                           ),
                                         ),
@@ -607,12 +474,11 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                               );
                             },
                           );
-                          if (result != null)
-                            setDialogState(() {
-                              selected
-                                ..clear()
-                                ..addAll(result);
-                            });
+                          if (result != null) setDialogState(() {
+                            selected
+                              ..clear()
+                              ..addAll(result);
+                          });
                         },
                         icon: const Icon(Icons.people_outline),
                         label: Text(tr('Choose')),
@@ -632,10 +498,8 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                           final u = users.firstWhere((x) => x.id == id);
                           return InputChip(
                             avatar: UserAvatar(user: u, radius: 13),
-                            label: Text(u.fullName,
-                                overflow: TextOverflow.ellipsis),
-                            onDeleted: () =>
-                                setDialogState(() => selected.remove(id)),
+                            label: Text(u.fullName, overflow: TextOverflow.ellipsis),
+                            onDeleted: () => setDialogState(() => selected.remove(id)),
                           );
                         },
                       ),
@@ -643,36 +507,28 @@ class _MessagesScreenState extends ConsumerState<MessagesScreen> {
                   ],
                 ],
                 const SizedBox(height: 12),
-                TextField(
-                    controller: content,
-                    maxLines: 8,
-                    decoration: InputDecoration(labelText: tr('Message'))),
+                TextField(controller: content, maxLines: 8, decoration: InputDecoration(labelText: tr('Message'))),
               ]),
             ),
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const T('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Cancel')),
             FilledButton(
               onPressed: () async {
-                if (content.text.trim().isEmpty ||
-                    (audience == 'selected' && selected.isEmpty)) return;
+                if (content.text.trim().isEmpty || (audience == 'selected' && selected.isEmpty)) return;
                 try {
                   await ref.read(repoProvider).createMessage(
-                        content: content.text,
-                        messageType: 'information',
-                        audienceType: audience,
-                        recipientIds: selected.toList(),
-                      );
+                    content: content.text,
+                    messageType: 'information',
+                    audienceType: audience,
+                    recipientIds: selected.toList(),
+                  );
                   if (dialogContext.mounted) Navigator.pop(dialogContext);
                   ref.invalidate(messagesProvider);
                   ref.invalidate(notificationsProvider);
                   ref.invalidate(dashboardProvider);
                 } catch (e) {
-                  if (mounted)
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('$e')));
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
                 }
               },
               child: const T('Send'),

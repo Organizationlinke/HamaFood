@@ -113,11 +113,17 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
         GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
         GoRoute(
           path: '/my-tasks',
-          builder: (_, __) => const TasksScreen(scope: 'my'),
+          builder: (_, s) => TasksScreen(
+            scope: 'my',
+            initialStatus: s.uri.queryParameters['status'] ?? 'not_started',
+          ),
         ),
         GoRoute(
           path: '/team-tasks',
-          builder: (_, __) => const TasksScreen(scope: 'team'),
+          builder: (_, s) => TasksScreen(
+            scope: 'team',
+            initialStatus: s.uri.queryParameters['status'] ?? 'not_started',
+          ),
         ),
         GoRoute(
           path: '/tasks/:id',
@@ -202,9 +208,17 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
     _auditWriteInFlight = true;
     try {
       await client.rpc('record_my_login');
+      // The first app-resume can happen just before the authenticated Home
+      // shell finishes building. Mark it as handled so Home entry does not
+      // create a duplicate history row.
+      if (reason == 'app resume') {
+        _homeEntryAuditDone = true;
+      }
       // If an administrator is already on the Users screen, refresh the
       // displayed last-login value after entering/returning to the app.
       if (mounted) {
+        ref.invalidate(profileProvider);
+        ref.invalidate(myLoginHistoryProvider);
         ref.invalidate(usersProvider);
       }
     } catch (e, st) {

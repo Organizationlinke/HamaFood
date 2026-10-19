@@ -1,2 +1,5 @@
 [functions.push-notification]
 verify_jwt = false
+
+[functions.admin-reset-password]
+verify_jwt = true

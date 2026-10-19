@@ -62,6 +62,27 @@ class Profile implements ProfileLike {
       );
 }
 
+class LoginHistoryItem {
+  final String id;
+  final String userId;
+  final DateTime loginAt;
+  final String source;
+
+  const LoginHistoryItem({
+    required this.id,
+    required this.userId,
+    required this.loginAt,
+    required this.source,
+  });
+
+  factory LoginHistoryItem.fromMap(Map<String, dynamic> m) => LoginHistoryItem(
+        id: m['id'].toString(),
+        userId: m['user_id'].toString(),
+        loginAt: _date(m['login_at']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+        source: (m['source'] ?? 'app_activity').toString(),
+      );
+}
+
 class Task {
   final String id;
   final String code;

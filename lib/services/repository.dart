@@ -25,6 +25,33 @@ class AppRepository {
     return row == null ? null : Profile.fromMap(Map<String, dynamic>.from(row));
   }
 
+  Future<List<LoginHistoryItem>> myLoginHistory({int limit = 30}) async {
+    final rows = await _db.rpc(
+      'get_my_login_history',
+      params: {'p_limit': limit},
+    );
+    return (rows as List)
+        .map<LoginHistoryItem>((m) => LoginHistoryItem.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+  }
+
+  Future<List<LoginHistoryItem>> userLoginHistory({
+    required String userId,
+    int limit = 50,
+  }) async {
+    final p = await myProfile();
+    if (p == null || !p.isGm) {
+      throw const AuthException('Only the General Manager can view login history');
+    }
+    final rows = await _db.rpc(
+      'get_user_login_history_admin',
+      params: {'p_user_id': userId, 'p_limit': limit},
+    );
+    return (rows as List)
+        .map<LoginHistoryItem>((m) => LoginHistoryItem.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+  }
+
   Future<List<Profile>> users({bool activeOnly = true}) async {
     // The last-login timestamp is intentionally returned only through the
     // GM-only RPC. Normal users never receive that field from this query.
@@ -77,12 +104,9 @@ class AppRepository {
       throw const AuthException('User is inactive or username does not match');
     }
 
-    // Record the successful login using Supabase server time so the value is
-    // independent of the user's device clock. Failure to record the audit
-    // timestamp must not block an otherwise valid login.
-    try {
-      await _db.rpc('record_my_login');
-    } catch (_) {}
+    // Login/activity audit is recorded centrally when the authenticated app
+    // reaches the Home screen. This avoids creating duplicate entries during
+    // the transition from the login screen to the application shell.
   }
 
   Future<void> createUser({
@@ -123,12 +147,29 @@ class AppRepository {
   Future<void> resetUserPassword({required String userId, required String newPassword}) async {
     final p = await myProfile();
     if (p == null || !p.isGm) throw const AuthException('Only the General Manager can reset passwords');
-    final response = await _db.functions.invoke('admin-reset-password', body: {
-      'user_id': userId,
-      'new_password': newPassword,
-    });
-    if (response.status < 200 || response.status >= 300) {
-      throw PostgrestException(message: response.data?.toString() ?? 'Could not reset password');
+    try {
+      final response = await _db.functions.invoke('admin-reset-password', body: {
+        'user_id': userId,
+        'new_password': newPassword,
+      });
+      if (response.status < 200 || response.status >= 300) {
+        final data = response.data;
+        final message = data is Map ? (data['error'] ?? data['message']) : data;
+        throw PostgrestException(
+          message: (message ?? 'Could not reset password').toString(),
+          code: 'ADMIN_RESET_PASSWORD_FAILED',
+        );
+      }
+    } catch (e) {
+      final raw = e.toString();
+      // Flutter Web may surface a CORS/network failure as only
+      // ".XMLHttpRequest error". Give the GM a useful message instead.
+      if (raw.contains('XMLHttpRequest error')) {
+        throw const AuthException(
+          'تعذر الاتصال بخدمة إعادة تعيين كلمة المرور. تأكد من نشر خدمة admin-reset-password في Supabase ثم أعد المحاولة.',
+        );
+      }
+      rethrow;
     }
   }
 

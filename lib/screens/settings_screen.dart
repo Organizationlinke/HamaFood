@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hama_work/widgets/common.dart';
@@ -7,6 +8,7 @@ import '../services/localization.dart';
 import '../theme.dart';
 import '../widgets/app_scaffold.dart';
 import '../services/push_notification_service.dart';
+import 'login_history_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -183,6 +185,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               style: const TextStyle(
                                   fontWeight: FontWeight.w900, fontSize: 18)),
                           Text('@${profile?.username ?? ''}'),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.access_time_rounded, size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                profile?.lastLoginAt == null
+                                    ? tr('Never seen')
+                                    : '${tr('Last seen')}: ${DateFormat('dd/MM/yyyy HH:mm').format(profile!.lastLoginAt!.toLocal())}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 8),
                           OutlinedButton.icon(
                               onPressed: busy ? null : _uploadAvatar,
@@ -192,6 +207,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   : 'Change profile photo'))
                         ])),
                   ]))),
+          const SizedBox(height: 14),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.history_rounded, color: HamaColors.teal),
+              title: const T('Login history'),
+              subtitle: const T('View your recent app entries and returns'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const LoginHistoryScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
           const SizedBox(height: 14),
           Card(
               child: Padding(

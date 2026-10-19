@@ -7,6 +7,8 @@ import '../services/repository.dart';
 final repoProvider = Provider<AppRepository>((ref) => AppRepository());
 final profileProvider = FutureProvider<Profile?>((ref) => ref.watch(repoProvider).myProfile());
 final usersProvider = FutureProvider<List<Profile>>((ref) => ref.watch(repoProvider).users());
+final myLoginHistoryProvider = FutureProvider<List<LoginHistoryItem>>((ref) => ref.watch(repoProvider).myLoginHistory());
+final userLoginHistoryProvider = FutureProvider.family<List<LoginHistoryItem>, String>((ref, userId) => ref.watch(repoProvider).userLoginHistory(userId: userId));
 final dashboardProvider = FutureProvider<DashboardStats>((ref) => ref.watch(repoProvider).dashboardStats());
 final tasksProvider = FutureProvider.family<List<Task>, String>((ref, scope) => ref.watch(repoProvider).tasks(scope: scope));
 final messagesProvider = FutureProvider<List<MessageItem>>((ref) => ref.watch(repoProvider).messages());

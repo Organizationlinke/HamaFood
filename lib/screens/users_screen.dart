@@ -61,8 +61,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                               const SizedBox(width: 4),
                               Text(
                                 u.lastLoginAt == null
-                                    ? tr('Never logged in')
-                                    : '${tr('Last login')}: ${DateFormat('dd/MM/yyyy HH:mm').format(u.lastLoginAt!.toLocal())}',
+                                    ? tr('Never seen')
+                                    : '${tr('Last seen')}: ${DateFormat('dd/MM/yyyy HH:mm').format(u.lastLoginAt!.toLocal())}',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -72,8 +72,14 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                     ),
                     trailing: profile?.isGm == true
                         ? PopupMenuButton<String>(
-                            onSelected: (value) { if (value == 'reset') _resetPassword(u); },
-                            itemBuilder: (_) => [PopupMenuItem(value: 'reset', child: T('Reset password'))],
+                            onSelected: (value) {
+                              if (value == 'reset') _resetPassword(u);
+                              if (value == 'history') _showLoginHistory(u);
+                            },
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(value: 'history', child: T('Login history')),
+                              const PopupMenuItem(value: 'reset', child: T('Reset password')),
+                            ],
                           )
                         : Chip(label: Text(AppI18n.roleLabel(u.role))),
                   ),
@@ -90,6 +96,50 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
               label: const T('New User'),
             )
           : null,
+    );
+  }
+
+  Future<void> _showLoginHistory(Profile user) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${tr('Login history')} — ${user.fullName}'),
+        content: SizedBox(
+          width: 520,
+          height: 420,
+          child: FutureBuilder<List<LoginHistoryItem>>(
+            future: ref.read(repoProvider).userLoginHistory(userId: user.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('${tr('Error')}: ${snapshot.error}'));
+              }
+              final rows = snapshot.data ?? const <LoginHistoryItem>[];
+              if (rows.isEmpty) {
+                return Center(child: Text(tr('No login history')));
+              }
+              return ListView.separated(
+                itemCount: rows.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, index) {
+                  final item = rows[index];
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.login_rounded),
+                    title: Text(DateFormat('dd/MM/yyyy HH:mm:ss').format(item.loginAt.toLocal())),
+                    subtitle: Text(tr('App activity')),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const T('Close')),
+        ],
+      ),
     );
   }
 

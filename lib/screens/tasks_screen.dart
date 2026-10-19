@@ -10,15 +10,39 @@ import '../theme.dart';
 
 class TasksScreen extends ConsumerStatefulWidget {
   final String scope;
+  final String initialStatus;
 
-  const TasksScreen({super.key, this.scope = 'team'});
+  const TasksScreen({
+    super.key,
+    this.scope = 'team',
+    this.initialStatus = 'not_started',
+  });
 
   @override
   ConsumerState<TasksScreen> createState() => _TasksScreenState();
 }
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
-  String status = 'not_started';
+  static const _validStatuses = <String>{
+    'not_started',
+    'in_progress',
+    'ready_for_completion',
+    'awaiting_approval',
+    'overdue',
+    'completed',
+    'cancelled',
+    'all',
+  };
+
+  late String status;
+
+  @override
+  void initState() {
+    super.initState();
+    status = _validStatuses.contains(widget.initialStatus)
+        ? widget.initialStatus
+        : 'not_started';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +141,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                             return Card(
                               clipBehavior: Clip.antiAlias,
                               child: InkWell(
-                                onTap: () => context.go('/tasks/${task.id}'),
+                                onTap: () => context.push('/tasks/${task.id}'),
                                 child: Padding(
                                   padding: const EdgeInsets.all(14),
                                   child: Row(
