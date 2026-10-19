@@ -12,10 +12,17 @@
     if (!('serviceWorker' in navigator)) {
       throw new Error('Service workers are not supported by this browser.');
     }
-    return await navigator.serviceWorker.register(
+    const reg = await navigator.serviceWorker.register(
       './push_service_worker.js',
       { scope: './' }
     );
+    // Ask the browser to check for a newer worker on every startup. This is
+    // important after a GitHub Pages deployment: the user's notification
+    // permission remains intact, but the service-worker code may have changed.
+    try {
+      await reg.update();
+    } catch (_) {}
+    return reg;
   }
 
   function serializeSubscription(sub) {
@@ -29,6 +36,11 @@
   }
 
   window.hamaPush = {
+    async getPermission() {
+      if (!('Notification' in window)) return 'unsupported';
+      return Notification.permission;
+    },
+
     async requestPermission() {
       if (!('Notification' in window)) {
         throw new Error('Notifications are not supported by this browser.');
