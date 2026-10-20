@@ -139,9 +139,27 @@ class _HamaWorkAppState extends ConsumerState<HamaWorkApp>
         ),
         GoRoute(
           path: '/tasks/:id',
-          builder: (_, s) => TaskDetailScreen(
-            taskId: s.pathParameters['id']!,
-          ),
+          builder: (_, s) {
+            final scope = s.uri.queryParameters['scope'] == 'my' ? 'my' : 'team';
+            final allowedStatuses = const {
+              'not_started',
+              'in_progress',
+              'ready_for_completion',
+              'awaiting_approval',
+              'overdue',
+              'completed',
+              'cancelled',
+              'all',
+            };
+            final status = allowedStatuses.contains(s.uri.queryParameters['status'])
+                ? s.uri.queryParameters['status']!
+                : 'not_started';
+            final listRoute = scope == 'my' ? '/my-tasks' : '/team-tasks';
+            return TaskDetailScreen(
+              taskId: s.pathParameters['id']!,
+              backRoute: '$listRoute?status=$status',
+            );
+          },
         ),
         GoRoute(
           path: '/messages',

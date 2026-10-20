@@ -141,7 +141,15 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                             return Card(
                               clipBehavior: Clip.antiAlias,
                               child: InkWell(
-                                onTap: () => context.push('/tasks/${task.id}'),
+                                onTap: () => context.push(
+                                  Uri(
+                                    path: '/tasks/${task.id}',
+                                    queryParameters: {
+                                      'scope': widget.scope,
+                                      'status': status,
+                                    },
+                                  ).toString(),
+                                ),
                                 child: Padding(
                                   padding: const EdgeInsets.all(14),
                                   child: Row(
@@ -226,6 +234,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     DateTime deadline = DateTime.now().add(const Duration(days: 1));
     bool evidence = false;
     const bool confirmation = true;
+    bool saving = false;
     final quantity = TextEditingController();
     final unit = TextEditingController();
 
@@ -373,8 +382,11 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               child: const T('Cancel'),
             ),
             FilledButton(
-              onPressed: () async {
+              onPressed: saving
+                  ? null
+                  : () async {
                 if (title.text.trim().isEmpty || responsible == null) return;
+                setDialogState(() => saving = true);
 
                 try {
                   await ref.read(repoProvider).createTask(
@@ -399,9 +411,19 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                       SnackBar(content: Text('$e')),
                     );
                   }
+                } finally {
+                  if (dialogContext.mounted) {
+                    setDialogState(() => saving = false);
+                  }
                 }
               },
-              child: const T('Create'),
+              child: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const T('Create'),
             ),
           ],
         ),

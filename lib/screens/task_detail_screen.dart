@@ -15,7 +15,13 @@ import '../widgets/chat_bubble.dart';
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
   final String taskId;
-  const TaskDetailScreen({super.key, required this.taskId});
+  final String backRoute;
+
+  const TaskDetailScreen({
+    super.key,
+    required this.taskId,
+    this.backRoute = '/team-tasks?status=not_started',
+  });
 
   @override
   ConsumerState<TaskDetailScreen> createState() => _TaskDetailScreenState();
@@ -123,7 +129,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen>
     return AppScaffold(
       title: 'Tasks',
       showBack: true,
-      backRoute: '/team-tasks',
+      backRoute: widget.backRoute,
       onRefresh: _refresh,
       body: FutureBuilder<Task>(
         future: _taskFuture,

@@ -4,12 +4,55 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/supabase_client.dart';
 import '../models/models.dart';
 
+class SupabaseWriteInProgressException implements Exception {
+  const SupabaseWriteInProgressException();
+
+  @override
+  String toString() => 'A previous save is still in progress. Please wait.';
+}
+
 class AppRepository {
   SupabaseClient get _db => supabase;
 
   String get _uid =>
       _db.auth.currentUser?.id ??
       (throw const AuthException('Not authenticated'));
+
+  // Prevent accidental duplicate writes when a slow network makes a button
+  // appear unresponsive and the user taps it again. The second call is
+  // rejected while the first Supabase request is still in flight, so the
+  // same action can never be sent twice concurrently. Different logical
+  // actions use different keys.
+  final Map<String, Future<dynamic>> _inFlightWrites = {};
+
+  Future<T> _singleFlight<T>(
+    String key,
+    Future<T> Function() action,
+  ) {
+    // A second tap while the first write is still in flight is deliberately
+    // rejected at the repository boundary. This is important because many
+    // callers perform UI side-effects (close a dialog, navigate, refresh)
+    // after await; sharing the Future would make those side-effects run twice.
+    if (_inFlightWrites.containsKey(key)) {
+      throw const SupabaseWriteInProgressException();
+    }
+
+    final future = action();
+    _inFlightWrites[key] = future;
+    future.then<void>(
+      (_) {
+        if (identical(_inFlightWrites[key], future)) {
+          _inFlightWrites.remove(key);
+        }
+      },
+      onError: (Object _, StackTrace __) {
+        if (identical(_inFlightWrites[key], future)) {
+          _inFlightWrites.remove(key);
+        }
+      },
+    );
+    return future;
+  }
 
   String _code(String prefix) {
     final d = DateTime.now();
@@ -117,74 +160,102 @@ class AppRepository {
     required String departmentCode,
     String? jobTitle,
   }) async {
-    final profile = await myProfile();
-    if (profile == null || !profile.isGm) {
-      throw const AuthException('Only the General Manager can create users');
-    }
+    return _singleFlight(
+      'createUser:${username.trim().toLowerCase()}:${fullName.trim()}:$role:$departmentCode:${jobTitle?.trim() ?? ''}',
+      () async {
 
-    final response = await _db.functions.invoke(
-      'create-user',
-      body: {
-        'username': username.trim().toLowerCase(),
-        'full_name': fullName.trim(),
-        'password': password,
-        'role': role,
-        'department_code': departmentCode,
-        'job_title': jobTitle?.trim(),
+        final profile = await myProfile();
+        if (profile == null || !profile.isGm) {
+          throw const AuthException('Only the General Manager can create users');
+        }
+
+        final response = await _db.functions.invoke(
+          'create-user',
+          body: {
+            'username': username.trim().toLowerCase(),
+            'full_name': fullName.trim(),
+            'password': password,
+            'role': role,
+            'department_code': departmentCode,
+            'job_title': jobTitle?.trim(),
+          },
+        );
+
+        if (response.status < 200 || response.status >= 300) {
+          throw PostgrestException(message: response.data?.toString() ?? 'Could not create user');
+        }
+      
       },
     );
-
-    if (response.status < 200 || response.status >= 300) {
-      throw PostgrestException(message: response.data?.toString() ?? 'Could not create user');
-    }
   }
 
   Future<void> changeMyPassword(String newPassword) async {
-    if (newPassword.length < 6) throw const AuthException('Password must be at least 6 characters');
-    await _db.auth.updateUser(UserAttributes(password: newPassword));
+    return _singleFlight(
+      'changeMyPassword',
+      () async {
+
+        if (newPassword.length < 6) throw const AuthException('Password must be at least 6 characters');
+        await _db.auth.updateUser(UserAttributes(password: newPassword));
+      
+      },
+    );
   }
 
   Future<void> resetUserPassword({required String userId, required String newPassword}) async {
-    final p = await myProfile();
-    if (p == null || !p.isGm) throw const AuthException('Only the General Manager can reset passwords');
-    try {
-      final response = await _db.functions.invoke('admin-reset-password', body: {
-        'user_id': userId,
-        'new_password': newPassword,
-      });
-      if (response.status < 200 || response.status >= 300) {
-        final data = response.data;
-        final message = data is Map ? (data['error'] ?? data['message']) : data;
-        throw PostgrestException(
-          message: (message ?? 'Could not reset password').toString(),
-          code: 'ADMIN_RESET_PASSWORD_FAILED',
-        );
-      }
-    } catch (e) {
-      final raw = e.toString();
-      // Flutter Web may surface a CORS/network failure as only
-      // ".XMLHttpRequest error". Give the GM a useful message instead.
-      if (raw.contains('XMLHttpRequest error')) {
-        throw const AuthException(
-          'تعذر الاتصال بخدمة إعادة تعيين كلمة المرور. تأكد من نشر خدمة admin-reset-password في Supabase ثم أعد المحاولة.',
-        );
-      }
-      rethrow;
-    }
+    return _singleFlight(
+      'resetUserPassword:$userId',
+      () async {
+
+        final p = await myProfile();
+        if (p == null || !p.isGm) throw const AuthException('Only the General Manager can reset passwords');
+        try {
+          final response = await _db.functions.invoke('admin-reset-password', body: {
+            'user_id': userId,
+            'new_password': newPassword,
+          });
+          if (response.status < 200 || response.status >= 300) {
+            final data = response.data;
+            final message = data is Map ? (data['error'] ?? data['message']) : data;
+            throw PostgrestException(
+              message: (message ?? 'Could not reset password').toString(),
+              code: 'ADMIN_RESET_PASSWORD_FAILED',
+            );
+          }
+        } catch (e) {
+          final raw = e.toString();
+          // Flutter Web may surface a CORS/network failure as only
+          // ".XMLHttpRequest error". Give the GM a useful message instead.
+          if (raw.contains('XMLHttpRequest error')) {
+            throw const AuthException(
+              'تعذر الاتصال بخدمة إعادة تعيين كلمة المرور. تأكد من نشر خدمة admin-reset-password في Supabase ثم أعد المحاولة.',
+            );
+          }
+          rethrow;
+        }
+      
+      },
+    );
   }
 
   Future<void> uploadAvatar(Uint8List bytes, String extension) async {
-    final path = '$_uid/avatar_${DateTime.now().millisecondsSinceEpoch}.$extension';
-    final contentType = switch (extension.toLowerCase()) {
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      _ => 'image/jpeg',
-    };
-    await _db.storage.from('avatars').uploadBinary(
-      path, bytes, fileOptions: FileOptions(upsert: true, contentType: contentType),
+    return _singleFlight(
+      'uploadAvatar:${_uid}:$extension:${bytes.length}',
+      () async {
+
+        final path = '$_uid/avatar_${DateTime.now().millisecondsSinceEpoch}.$extension';
+        final contentType = switch (extension.toLowerCase()) {
+          'png' => 'image/png',
+          'webp' => 'image/webp',
+          _ => 'image/jpeg',
+        };
+        await _db.storage.from('avatars').uploadBinary(
+          path, bytes, fileOptions: FileOptions(upsert: true, contentType: contentType),
+        );
+        final url = _db.storage.from('avatars').getPublicUrl(path);
+        await _db.rpc('set_my_avatar_url', params: {'p_url': url});
+      
+      },
     );
-    final url = _db.storage.from('avatars').getPublicUrl(path);
-    await _db.rpc('set_my_avatar_url', params: {'p_url': url});
   }
 
   Future<List<UserPermission>> userPermissions(String userId) async {
@@ -195,11 +266,18 @@ class AppRepository {
   }
 
   Future<void> setUserPermission({required String userId, required String permissionKey, required bool enabled}) async {
-    final p = await myProfile();
-    if (p == null || !p.isGm) throw const AuthException('Only the General Manager can manage permissions');
-    await _db.from('user_permissions').upsert({
-      'user_id': userId, 'permission_key': permissionKey, 'enabled': enabled, 'updated_at': DateTime.now().toIso8601String(),
-    });
+    return _singleFlight(
+      'setUserPermission:$userId:$permissionKey:$enabled',
+      () async {
+
+        final p = await myProfile();
+        if (p == null || !p.isGm) throw const AuthException('Only the General Manager can manage permissions');
+        await _db.from('user_permissions').upsert({
+          'user_id': userId, 'permission_key': permissionKey, 'enabled': enabled, 'updated_at': DateTime.now().toIso8601String(),
+        });
+      
+      },
+    );
   }
 
   Future<bool> hasPermission(String permissionKey) async {
@@ -210,12 +288,19 @@ class AppRepository {
   }
 
   Future<void> setPreferredLanguage(String code) async {
-    if (code != 'ar' && code != 'en') {
-      throw const PostgrestException(message: 'Invalid language');
-    }
-    await _db.rpc(
-      'set_preferred_language',
-      params: {'p_language': code},
+    return _singleFlight(
+      'setPreferredLanguage:$code',
+      () async {
+
+        if (code != 'ar' && code != 'en') {
+          throw const PostgrestException(message: 'Invalid language');
+        }
+        await _db.rpc(
+          'set_preferred_language',
+          params: {'p_language': code},
+        );
+      
+      },
     );
   }
 
@@ -278,27 +363,41 @@ class AppRepository {
     double? totalQuantity,
     String? quantityUnit,
   }) async {
-    final p = await myProfile();
-    if (p == null || !p.isGm) throw const AuthException('Only the General Manager can edit tasks');
-    await _db.rpc('admin_update_task', params: {
-      'p_task_id': id,
-      'p_title': title.trim(),
-      'p_description': description?.trim().isEmpty == true ? null : description?.trim(),
-      'p_priority': priority,
-      'p_deadline': deadline.toIso8601String(),
-      'p_responsible_id': responsibleId,
-      'p_follower_id': followerId,
-      'p_evidence_required': evidenceRequired,
-      'p_manager_confirmation_required': managerConfirmationRequired,
-      'p_total_quantity': totalQuantity,
-      'p_quantity_unit': quantityUnit?.trim().isEmpty == true ? null : quantityUnit?.trim(),
-    });
+    return _singleFlight(
+      'updateTask:$id',
+      () async {
+
+        final p = await myProfile();
+        if (p == null || !p.isGm) throw const AuthException('Only the General Manager can edit tasks');
+        await _db.rpc('admin_update_task', params: {
+          'p_task_id': id,
+          'p_title': title.trim(),
+          'p_description': description?.trim().isEmpty == true ? null : description?.trim(),
+          'p_priority': priority,
+          'p_deadline': deadline.toIso8601String(),
+          'p_responsible_id': responsibleId,
+          'p_follower_id': followerId,
+          'p_evidence_required': evidenceRequired,
+          'p_manager_confirmation_required': managerConfirmationRequired,
+          'p_total_quantity': totalQuantity,
+          'p_quantity_unit': quantityUnit?.trim().isEmpty == true ? null : quantityUnit?.trim(),
+        });
+      
+      },
+    );
   }
 
   Future<void> deleteTask(String id) async {
-    final p = await myProfile();
-    if (p == null || !p.isGm) throw const AuthException('Only the General Manager can delete tasks');
-    await _db.rpc('admin_delete_task', params: {'p_task_id': id});
+    return _singleFlight(
+      'deleteTask:$id',
+      () async {
+
+        final p = await myProfile();
+        if (p == null || !p.isGm) throw const AuthException('Only the General Manager can delete tasks');
+        await _db.rpc('admin_delete_task', params: {'p_task_id': id});
+      
+      },
+    );
   }
 
   Future<List<Task>> trashTasks() async {
@@ -309,15 +408,29 @@ class AppRepository {
   }
 
   Future<void> restoreTask(String id) async {
-    final p = await myProfile();
-    if (p == null || !p.isGm) throw const AuthException('Only the General Manager can restore tasks');
-    await _db.rpc('admin_restore_task', params: {'p_task_id': id});
+    return _singleFlight(
+      'restoreTask:$id',
+      () async {
+
+        final p = await myProfile();
+        if (p == null || !p.isGm) throw const AuthException('Only the General Manager can restore tasks');
+        await _db.rpc('admin_restore_task', params: {'p_task_id': id});
+      
+      },
+    );
   }
 
   Future<void> permanentlyDeleteTask(String id) async {
-    final p = await myProfile();
-    if (p == null || !p.isGm) throw const AuthException('Only the General Manager can permanently delete tasks');
-    await _db.rpc('admin_permanently_delete_task', params: {'p_task_id': id});
+    return _singleFlight(
+      'permanentlyDeleteTask:$id',
+      () async {
+
+        final p = await myProfile();
+        if (p == null || !p.isGm) throw const AuthException('Only the General Manager can permanently delete tasks');
+        await _db.rpc('admin_permanently_delete_task', params: {'p_task_id': id});
+      
+      },
+    );
   }
 
   Future<Task> createTask({
@@ -333,148 +446,190 @@ class AppRepository {
     double? totalQuantity,
     String? quantityUnit,
   }) async {
-    final profile = await myProfile();
-    if (profile == null || !profile.isGm) {
-      throw const AuthException(
-        'Only the General Manager can create tasks',
-      );
-    }
+    return _singleFlight(
+      'createTask:${title.trim()}:${deadline.toIso8601String()}:$responsibleId:${followerId ?? ''}:$priority:${messageId ?? ''}:${totalQuantity ?? ''}:${quantityUnit?.trim() ?? ''}',
+      () async {
 
-    if (title.trim().isEmpty) {
-      throw const PostgrestException(message: 'Task title is required');
-    }
+        final profile = await myProfile();
+        if (profile == null || !profile.isGm) {
+          throw const AuthException(
+            'Only the General Manager can create tasks',
+          );
+        }
 
-    final row = await _db
-        .from('tasks')
-        .insert({
-          'code': _code('TASK'),
-          'title': title.trim(),
-          'description': description?.trim().isEmpty == true
-              ? null
-              : description?.trim(),
-          'priority': priority,
-          'status': 'not_started',
-          'responsible_id': responsibleId,
-          'follower_id': followerId,
-          'deadline': deadline.toIso8601String(),
-          'evidence_required': evidenceRequired,
-          'manager_confirmation_required': managerConfirmationRequired,
-          'created_by': _uid,
-          'message_id': messageId,
-          'total_quantity': totalQuantity,
-          'quantity_unit': quantityUnit?.trim().isEmpty == true ? null : quantityUnit?.trim(),
-        })
-        .select()
-        .single();
+        if (title.trim().isEmpty) {
+          throw const PostgrestException(message: 'Task title is required');
+        }
 
-    final task = Task.fromMap(Map<String, dynamic>.from(row));
+        final row = await _db
+            .from('tasks')
+            .insert({
+              'code': _code('TASK'),
+              'title': title.trim(),
+              'description': description?.trim().isEmpty == true
+                  ? null
+                  : description?.trim(),
+              'priority': priority,
+              'status': 'not_started',
+              'responsible_id': responsibleId,
+              'follower_id': followerId,
+              'deadline': deadline.toIso8601String(),
+              'evidence_required': evidenceRequired,
+              'manager_confirmation_required': managerConfirmationRequired,
+              'created_by': _uid,
+              'message_id': messageId,
+              'total_quantity': totalQuantity,
+              'quantity_unit': quantityUnit?.trim().isEmpty == true ? null : quantityUnit?.trim(),
+            })
+            .select()
+            .single();
 
-    // Notification fallback: the DB trigger may already create these.
-    // The dedupe key in the DB prevents duplicates.
-    try {
-      await _db.rpc(
-        'notify_task_created',
-        params: {'p_task_id': task.id},
-      );
-    } catch (_) {}
+        final task = Task.fromMap(Map<String, dynamic>.from(row));
 
-    return task;
+        // Notification fallback: the DB trigger may already create these.
+        // The dedupe key in the DB prevents duplicates.
+        try {
+          await _db.rpc(
+            'notify_task_created',
+            params: {'p_task_id': task.id},
+          );
+        } catch (_) {}
+
+        return task;
+      
+      },
+    );
   }
 
   Future<void> updateTaskStatus(String id, String status, {String? proofNote}) async {
-    if (![
-      'not_started',
-      'in_progress',
-      'ready_for_completion',
-    ].contains(status)) {
-      throw const PostgrestException(message: 'Invalid task status');
-    }
+    return _singleFlight(
+      'updateTaskStatus:$id:$status:${proofNote ?? ''}',
+      () async {
 
-    await _db.rpc(
-      'set_task_status',
-      params: {
-        'p_task_id': id,
-        'p_status': status,
-        'p_proof_note': proofNote,
+        if (![
+          'not_started',
+          'in_progress',
+          'ready_for_completion',
+        ].contains(status)) {
+          throw const PostgrestException(message: 'Invalid task status');
+        }
+
+        await _db.rpc(
+          'set_task_status',
+          params: {
+            'p_task_id': id,
+            'p_status': status,
+            'p_proof_note': proofNote,
+          },
+        );
+
+        try {
+          await _db.rpc(
+            'notify_task_status',
+            params: {
+              'p_task_id': id,
+              'p_status': status,
+            },
+          );
+        } catch (_) {}
+      
       },
     );
-
-    try {
-      await _db.rpc(
-        'notify_task_status',
-        params: {
-          'p_task_id': id,
-          'p_status': status,
-        },
-      );
-    } catch (_) {}
   }
 
   Future<void> reopenTask(String id) async {
-    if (!await hasPermission('tasks.reopen')) throw const AuthException('Reopen task permission required');
+    return _singleFlight(
+      'reopenTask:$id',
+      () async {
 
-    await _db.rpc(
-      'reopen_task',
-      params: {'p_task_id': id},
+        if (!await hasPermission('tasks.reopen')) throw const AuthException('Reopen task permission required');
+
+        await _db.rpc(
+          'reopen_task',
+          params: {'p_task_id': id},
+        );
+
+        try {
+          await _db.rpc(
+            'notify_task_status',
+            params: {
+              'p_task_id': id,
+              'p_status': 'in_progress',
+            },
+          );
+        } catch (_) {}
+      
+      },
     );
-
-    try {
-      await _db.rpc(
-        'notify_task_status',
-        params: {
-          'p_task_id': id,
-          'p_status': 'in_progress',
-        },
-      );
-    } catch (_) {}
   }
 
   Future<void> cancelTask(String id) async {
-    if (!await hasPermission('tasks.cancel')) throw const AuthException('Cancel task permission required');
+    return _singleFlight(
+      'cancelTask:$id',
+      () async {
 
-    await _db.rpc('cancel_task', params: {'p_task_id': id});
+        if (!await hasPermission('tasks.cancel')) throw const AuthException('Cancel task permission required');
 
-    try {
-      await _db.rpc(
-        'notify_task_status',
-        params: {
-          'p_task_id': id,
-          'p_status': 'cancelled',
-        },
-      );
-    } catch (_) {}
+        await _db.rpc('cancel_task', params: {'p_task_id': id});
+
+        try {
+          await _db.rpc(
+            'notify_task_status',
+            params: {
+              'p_task_id': id,
+              'p_status': 'cancelled',
+            },
+          );
+        } catch (_) {}
+      
+      },
+    );
   }
 
   Future<void> reviewTaskCompletion(String id) async {
-    await _db.rpc('review_task_completion', params: {'p_task_id': id});
-    try {
-      await _db.rpc(
-        'notify_task_status',
-        params: {
-          'p_task_id': id,
-          'p_status': 'awaiting_approval',
-        },
-      );
-    } catch (_) {}
+    return _singleFlight(
+      'reviewTaskCompletion:$id',
+      () async {
+
+        await _db.rpc('review_task_completion', params: {'p_task_id': id});
+        try {
+          await _db.rpc(
+            'notify_task_status',
+            params: {
+              'p_task_id': id,
+              'p_status': 'awaiting_approval',
+            },
+          );
+        } catch (_) {}
+      
+      },
+    );
   }
 
   Future<void> confirmTask(String id) async {
-    final p = await myProfile();
-    if (p == null || !p.isGm) {
-      throw const AuthException('Only the General Manager can approve the operation');
-    }
+    return _singleFlight(
+      'confirmTask:$id',
+      () async {
 
-    await _db.rpc('approve_task', params: {'p_task_id': id});
+        final p = await myProfile();
+        if (p == null || !p.isGm) {
+          throw const AuthException('Only the General Manager can approve the operation');
+        }
 
-    try {
-      await _db.rpc(
-        'notify_task_status',
-        params: {
-          'p_task_id': id,
-          'p_status': 'completed',
-        },
-      );
-    } catch (_) {}
+        await _db.rpc('approve_task', params: {'p_task_id': id});
+
+        try {
+          await _db.rpc(
+            'notify_task_status',
+            params: {
+              'p_task_id': id,
+              'p_status': 'completed',
+            },
+          );
+        } catch (_) {}
+      
+      },
+    );
   }
 
   Future<void> evaluateTask(
@@ -482,21 +637,28 @@ class AppRepository {
     int score,
     String? comment,
   ) async {
-    if (!await hasPermission('tasks.evaluate')) throw const AuthException('Evaluate task permission required');
-    if (score < 1 || score > 10) {
-      throw const PostgrestException(
-        message: 'Score must be between 1 and 10',
-      );
-    }
+    return _singleFlight(
+      'evaluateTask:$id:$score:${comment ?? ''}',
+      () async {
 
-    await _db.rpc(
-      'evaluate_task',
-      params: {
-        'p_task_id': id,
-        'p_score': score,
-        'p_comment': comment?.trim().isEmpty == true
-            ? null
-            : comment?.trim(),
+        if (!await hasPermission('tasks.evaluate')) throw const AuthException('Evaluate task permission required');
+        if (score < 1 || score > 10) {
+          throw const PostgrestException(
+            message: 'Score must be between 1 and 10',
+          );
+        }
+
+        await _db.rpc(
+          'evaluate_task',
+          params: {
+            'p_task_id': id,
+            'p_score': score,
+            'p_comment': comment?.trim().isEmpty == true
+                ? null
+                : comment?.trim(),
+          },
+        );
+      
       },
     );
   }
@@ -518,20 +680,27 @@ class AppRepository {
     String? quantityUnit,
     int sortOrder = 1,
   }) async {
-    final p = await myProfile();
-    if (p == null || !p.isGm) {
-      throw const AuthException('Only the General Manager can add task stages');
-    }
-    final row = await _db.from('task_stages').insert({
-      'task_id': taskId,
-      'title': title.trim(),
-      'deadline': deadline.toIso8601String(),
-      'target_quantity': targetQuantity,
-      'quantity_unit': quantityUnit?.trim().isEmpty == true ? null : quantityUnit?.trim(),
-      'sort_order': sortOrder,
-      'created_by': _uid,
-    }).select().single();
-    return TaskStage.fromMap(Map<String, dynamic>.from(row));
+    return _singleFlight(
+      'createTaskStage:$taskId:${title.trim()}:${deadline.toIso8601String()}:$sortOrder',
+      () async {
+
+        final p = await myProfile();
+        if (p == null || !p.isGm) {
+          throw const AuthException('Only the General Manager can add task stages');
+        }
+        final row = await _db.from('task_stages').insert({
+          'task_id': taskId,
+          'title': title.trim(),
+          'deadline': deadline.toIso8601String(),
+          'target_quantity': targetQuantity,
+          'quantity_unit': quantityUnit?.trim().isEmpty == true ? null : quantityUnit?.trim(),
+          'sort_order': sortOrder,
+          'created_by': _uid,
+        }).select().single();
+        return TaskStage.fromMap(Map<String, dynamic>.from(row));
+      
+      },
+    );
   }
 
   Future<List<TaskDailyUpdate>> taskDailyUpdates(String taskId) async {
@@ -550,22 +719,29 @@ class AppRepository {
     double? quantityDone,
     String? workNote,
   }) async {
-    if (quantityDone != null && quantityDone < 0) {
-      throw const PostgrestException(message: 'Quantity cannot be negative');
-    }
-    final data = {
-      'task_id': taskId,
-      'stage_id': stageId,
-      'work_date': workDate.toIso8601String().substring(0, 10),
-      'quantity_done': quantityDone,
-      'work_note': workNote?.trim().isEmpty == true ? null : workNote?.trim(),
-      'created_by': _uid,
-    };
-    final row = await _db.from('task_daily_updates')
-        .insert(data)
-        .select('id,task_id,stage_id,work_date,quantity_done,work_note,created_by,created_at,creator:profiles(full_name,avatar_url)')
-        .single();
-    return TaskDailyUpdate.fromMap(Map<String, dynamic>.from(row));
+    return _singleFlight(
+      'saveDailyUpdate:$taskId:${stageId ?? ''}:${workDate.toIso8601String()}:${quantityDone ?? ''}:${workNote ?? ''}',
+      () async {
+
+        if (quantityDone != null && quantityDone < 0) {
+          throw const PostgrestException(message: 'Quantity cannot be negative');
+        }
+        final data = {
+          'task_id': taskId,
+          'stage_id': stageId,
+          'work_date': workDate.toIso8601String().substring(0, 10),
+          'quantity_done': quantityDone,
+          'work_note': workNote?.trim().isEmpty == true ? null : workNote?.trim(),
+          'created_by': _uid,
+        };
+        final row = await _db.from('task_daily_updates')
+            .insert(data)
+            .select('id,task_id,stage_id,work_date,quantity_done,work_note,created_by,created_at,creator:profiles(full_name,avatar_url)')
+            .single();
+        return TaskDailyUpdate.fromMap(Map<String, dynamic>.from(row));
+      
+      },
+    );
   }
 
   Future<List<TaskFollowerNote>> taskFollowerNotes(String taskId) async {
@@ -578,19 +754,40 @@ class AppRepository {
   }
 
   Future<TaskFollowerNote> addTaskFollowerNote(String taskId, String note) async {
-    final row = await _db.from('task_follower_notes')
-        .insert({'task_id': taskId, 'created_by': _uid, 'note': note.trim()})
-        .select('id,task_id,created_by,note,created_at,updated_at,creator:profiles(full_name,avatar_url)')
-        .single();
-    return TaskFollowerNote.fromMap(Map<String, dynamic>.from(row));
+    return _singleFlight(
+      'addTaskFollowerNote:$taskId:${note.trim()}',
+      () async {
+
+        final row = await _db.from('task_follower_notes')
+            .insert({'task_id': taskId, 'created_by': _uid, 'note': note.trim()})
+            .select('id,task_id,created_by,note,created_at,updated_at,creator:profiles(full_name,avatar_url)')
+            .single();
+        return TaskFollowerNote.fromMap(Map<String, dynamic>.from(row));
+      
+      },
+    );
   }
 
   Future<void> updateTaskFollowerNote(String id, String note) async {
-    await _db.from('task_follower_notes').update({'note': note.trim()}).eq('id', id);
+    return _singleFlight(
+      'updateTaskFollowerNote:$id:${note.trim()}',
+      () async {
+
+        await _db.from('task_follower_notes').update({'note': note.trim()}).eq('id', id);
+      
+      },
+    );
   }
 
   Future<void> deleteTaskFollowerNote(String id) async {
-    await _db.from('task_follower_notes').delete().eq('id', id);
+    return _singleFlight(
+      'deleteTaskFollowerNote:$id',
+      () async {
+
+        await _db.from('task_follower_notes').delete().eq('id', id);
+      
+      },
+    );
   }
 
   Future<List<TaskComment>> taskComments(String taskId) async {
@@ -620,21 +817,28 @@ class AppRepository {
   }
 
   Future<TaskComment> addTaskComment(String taskId, String content) async {
-    final row = await _db.from('task_comments').insert({
-      'task_id': taskId,
-      'content': content.trim(),
-      'created_by': _uid,
-    }).select('id,task_id,content,created_by,created_at,creator:profiles(full_name,avatar_url)').single();
-    final mm = Map<String, dynamic>.from(row);
-    final c = mm['creator'];
-    return TaskComment(
-      id: mm['id'].toString(),
-      taskId: mm['task_id'].toString(),
-      content: (mm['content'] ?? '').toString(),
-      createdBy: mm['created_by']?.toString(),
-      creatorName: c is Map ? (c['full_name'] ?? 'User').toString() : 'User',
-      creatorAvatarUrl: c is Map ? c['avatar_url']?.toString() : null,
-      createdAt: DateTime.tryParse(mm['created_at'].toString()) ?? DateTime.now(),
+    return _singleFlight(
+      'addTaskComment:$taskId:${content.trim()}',
+      () async {
+
+        final row = await _db.from('task_comments').insert({
+          'task_id': taskId,
+          'content': content.trim(),
+          'created_by': _uid,
+        }).select('id,task_id,content,created_by,created_at,creator:profiles(full_name,avatar_url)').single();
+        final mm = Map<String, dynamic>.from(row);
+        final c = mm['creator'];
+        return TaskComment(
+          id: mm['id'].toString(),
+          taskId: mm['task_id'].toString(),
+          content: (mm['content'] ?? '').toString(),
+          createdBy: mm['created_by']?.toString(),
+          creatorName: c is Map ? (c['full_name'] ?? 'User').toString() : 'User',
+          creatorAvatarUrl: c is Map ? c['avatar_url']?.toString() : null,
+          createdAt: DateTime.tryParse(mm['created_at'].toString()) ?? DateTime.now(),
+        );
+      
+      },
     );
   }
 
@@ -671,38 +875,59 @@ class AppRepository {
     required String audienceType,
     required List<String> recipientIds,
   }) async {
-    final result = await _db.rpc(
-      'create_message',
-      params: {
-        'p_content': content.trim(),
-        'p_message_type': messageType,
-        'p_audience_type': audienceType,
-        'p_target_user_ids': recipientIds,
+    return _singleFlight(
+      'createMessage:${content.trim()}:$messageType:$audienceType:${recipientIds.join(',')}',
+      () async {
+
+        final result = await _db.rpc(
+          'create_message',
+          params: {
+            'p_content': content.trim(),
+            'p_message_type': messageType,
+            'p_audience_type': audienceType,
+            'p_target_user_ids': recipientIds,
+          },
+        );
+
+        final messageId = result?.toString();
+        if (messageId != null && messageId.isNotEmpty) {
+          try {
+            await _db.rpc(
+              'notify_message_sent',
+              params: {'p_message_id': messageId},
+            );
+          } catch (_) {}
+        }
+      
       },
     );
-
-    final messageId = result?.toString();
-    if (messageId != null && messageId.isNotEmpty) {
-      try {
-        await _db.rpc(
-          'notify_message_sent',
-          params: {'p_message_id': messageId},
-        );
-      } catch (_) {}
-    }
   }
 
   Future<void> markMessageSeen(String id) async {
-    await _db.rpc(
-      'mark_message_seen',
-      params: {'p_message_id': id},
+    return _singleFlight(
+      'markMessageSeen:$id',
+      () async {
+
+        await _db.rpc(
+          'mark_message_seen',
+          params: {'p_message_id': id},
+        );
+      
+      },
     );
   }
 
   Future<void> setMessageStatus(String messageId, String status) async {
-    await _db.rpc(
-      'set_message_recipient_status',
-      params: {'p_message_id': messageId, 'p_status': status},
+    return _singleFlight(
+      'setMessageStatus:$messageId:$status',
+      () async {
+
+        await _db.rpc(
+          'set_message_recipient_status',
+          params: {'p_message_id': messageId, 'p_status': status},
+        );
+      
+      },
     );
   }
 
@@ -803,19 +1028,33 @@ class AppRepository {
     String messageId,
     String content,
   ) async {
-    final row = await _db.from('message_comments').insert({
-      'message_id': messageId,
-      'content': content.trim(),
-      'created_by': _uid,
-    }).select('id').single();
-    return row['id'].toString();
+    return _singleFlight(
+      'addMessageComment:$messageId:${content.trim()}',
+      () async {
+
+        final row = await _db.from('message_comments').insert({
+          'message_id': messageId,
+          'content': content.trim(),
+          'created_by': _uid,
+        }).select('id').single();
+        return row['id'].toString();
+      
+      },
+    );
   }
 
   Future<void> linkMessageToTask(String messageId, String taskId) async {
-    await _db
-        .from('messages')
-        .update({'task_id': taskId})
-        .eq('id', messageId);
+    return _singleFlight(
+      'linkMessageToTask:$messageId:$taskId',
+      () async {
+
+        await _db
+            .from('messages')
+            .update({'task_id': taskId})
+            .eq('id', messageId);
+      
+      },
+    );
   }
 
   Future<List<AttachmentItem>> attachmentsForTask(String taskId) async {
@@ -864,48 +1103,62 @@ class AppRepository {
     required Uint8List bytes,
     String? mimeType,
   }) async {
-    final parentCount = [taskId, messageId, dailyUpdateId, messageCommentId, taskCommentId].whereType<String>().length;
-    if (parentCount != 1) {
-      throw const PostgrestException(message: 'Attachment must belong to exactly one parent');
-    }
-    final allowed = await hasPermission('attachments.upload');
-    if (!allowed) throw const AuthException('Attachment upload permission required');
-    if (dailyUpdateId != null) {
-      final row = await _db.from('task_daily_updates').select('attachments_locked').eq('id', dailyUpdateId).maybeSingle();
-      if (row == null || row['attachments_locked'] == true) {
-        throw const AuthException('Attachments are locked for this saved work log');
-      }
-    }
-    final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-    final path = '$_uid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
-    await _db.storage.from('attachments').uploadBinary(
-      path,
-      bytes,
-      fileOptions: FileOptions(upsert: false, contentType: mimeType),
+    return _singleFlight(
+      'uploadAttachment:${taskId ?? messageId ?? dailyUpdateId ?? messageCommentId ?? taskCommentId}:${fileName}:${bytes.length}:$isCompletionProof',
+      () async {
+
+        final parentCount = [taskId, messageId, dailyUpdateId, messageCommentId, taskCommentId].whereType<String>().length;
+        if (parentCount != 1) {
+          throw const PostgrestException(message: 'Attachment must belong to exactly one parent');
+        }
+        final allowed = await hasPermission('attachments.upload');
+        if (!allowed) throw const AuthException('Attachment upload permission required');
+        if (dailyUpdateId != null) {
+          final row = await _db.from('task_daily_updates').select('attachments_locked').eq('id', dailyUpdateId).maybeSingle();
+          if (row == null || row['attachments_locked'] == true) {
+            throw const AuthException('Attachments are locked for this saved work log');
+          }
+        }
+        final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+        final path = '$_uid/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+        await _db.storage.from('attachments').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(upsert: false, contentType: mimeType),
+        );
+        try {
+          final row = await _db.from('attachments').insert({
+            'task_id': taskId,
+            'message_id': messageId,
+            'daily_update_id': dailyUpdateId,
+            'message_comment_id': messageCommentId,
+            'task_comment_id': taskCommentId,
+            'is_completion_proof': isCompletionProof,
+            'file_name': fileName,
+            'storage_path': path,
+            'mime_type': mimeType,
+            'file_size': bytes.length,
+            'uploaded_by': _uid,
+          }).select('id,task_id,message_id,file_name,storage_path,mime_type,file_size,uploaded_by,created_at,uploader:profiles(full_name,avatar_url)').single();
+          return AttachmentItem.fromMap(Map<String, dynamic>.from(row));
+        } catch (e) {
+          try { await _db.storage.from('attachments').remove([path]); } catch (_) {}
+          rethrow;
+        }
+      
+      },
     );
-    try {
-      final row = await _db.from('attachments').insert({
-        'task_id': taskId,
-        'message_id': messageId,
-        'daily_update_id': dailyUpdateId,
-        'message_comment_id': messageCommentId,
-        'task_comment_id': taskCommentId,
-        'is_completion_proof': isCompletionProof,
-        'file_name': fileName,
-        'storage_path': path,
-        'mime_type': mimeType,
-        'file_size': bytes.length,
-        'uploaded_by': _uid,
-      }).select('id,task_id,message_id,file_name,storage_path,mime_type,file_size,uploaded_by,created_at,uploader:profiles(full_name,avatar_url)').single();
-      return AttachmentItem.fromMap(Map<String, dynamic>.from(row));
-    } catch (e) {
-      try { await _db.storage.from('attachments').remove([path]); } catch (_) {}
-      rethrow;
-    }
   }
 
   Future<void> finalizeDailyUpdateAttachments(String dailyUpdateId) async {
-    await _db.rpc('finalize_daily_update_attachments', params: {'p_daily_update_id': dailyUpdateId});
+    return _singleFlight(
+      'finalizeDailyUpdateAttachments:$dailyUpdateId',
+      () async {
+
+        await _db.rpc('finalize_daily_update_attachments', params: {'p_daily_update_id': dailyUpdateId});
+      
+      },
+    );
   }
 
   Future<String> attachmentUrl(AttachmentItem item) async {
@@ -941,12 +1194,19 @@ class AppRepository {
   }
 
   Future<void> deleteAttachment(AttachmentItem item) async {
-    if (item.uploadedBy != _uid) {
-      final p = await myProfile();
-      if (p?.isGm != true) throw const AuthException('Not allowed');
-    }
-    await _db.from('attachments').delete().eq('id', item.id);
-    try { await _db.storage.from('attachments').remove([item.storagePath]); } catch (_) {}
+    return _singleFlight(
+      'deleteAttachment:${item.id}',
+      () async {
+
+        if (item.uploadedBy != _uid) {
+          final p = await myProfile();
+          if (p?.isGm != true) throw const AuthException('Not allowed');
+        }
+        await _db.from('attachments').delete().eq('id', item.id);
+        try { await _db.storage.from('attachments').remove([item.storagePath]); } catch (_) {}
+      
+      },
+    );
   }
 
   Future<List<NotificationItem>> notifications() async {
@@ -976,25 +1236,39 @@ class AppRepository {
   }
 
   Future<void> markNotificationRead(String id) async {
-    await _db
-        .from('notifications')
-        .update({
-          'is_read': true,
-          'read_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', id)
-        .eq('user_id', _uid);
+    return _singleFlight(
+      'markNotificationRead:$id',
+      () async {
+
+        await _db
+            .from('notifications')
+            .update({
+              'is_read': true,
+              'read_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', id)
+            .eq('user_id', _uid);
+      
+      },
+    );
   }
 
   Future<void> markAllNotificationsRead() async {
-    await _db
-        .from('notifications')
-        .update({
-          'is_read': true,
-          'read_at': DateTime.now().toIso8601String(),
-        })
-        .eq('user_id', _uid)
-        .eq('is_read', false);
+    return _singleFlight(
+      'markAllNotificationsRead',
+      () async {
+
+        await _db
+            .from('notifications')
+            .update({
+              'is_read': true,
+              'read_at': DateTime.now().toIso8601String(),
+            })
+            .eq('user_id', _uid)
+            .eq('is_read', false);
+      
+      },
+    );
   }
 
   Future<void> _syncDueNotifications() async {
